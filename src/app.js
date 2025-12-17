@@ -11,6 +11,11 @@
     let parsedData = null;
     let extractionResult = null;
 
+    // Import state
+    let importMizFile = null;
+    let importTxtFile = null;
+    let importedMizBlob = null;
+
     // DOM Elements
     const elements = {
         dropZone: document.getElementById('drop-zone'),
@@ -36,7 +41,25 @@
         extractionStats: document.getElementById('extraction-stats'),
         downloadBtn: document.getElementById('download-btn'),
         errorSection: document.getElementById('error-section'),
-        errorMessage: document.getElementById('error-message')
+        errorMessage: document.getElementById('error-message'),
+        // Import elements
+        importMizInput: document.getElementById('import-miz-input'),
+        importMizInfo: document.getElementById('import-miz-info'),
+        importMizName: document.getElementById('import-miz-name'),
+        importTxtInput: document.getElementById('import-txt-input'),
+        importTxtInfo: document.getElementById('import-txt-info'),
+        importTxtName: document.getElementById('import-txt-name'),
+        importLocaleSelect: document.getElementById('import-locale-select'),
+        importBtn: document.getElementById('import-btn'),
+        importText: document.getElementById('import-text'),
+        importSpinner: document.getElementById('import-spinner'),
+        importProgressSection: document.getElementById('import-progress-section'),
+        importProgressBar: document.getElementById('import-progress-bar'),
+        importProgressText: document.getElementById('import-progress-text'),
+        importSuccessSection: document.getElementById('import-success-section'),
+        downloadImportedBtn: document.getElementById('download-imported-btn'),
+        importErrorSection: document.getElementById('import-error-section'),
+        importErrorMessage: document.getElementById('import-error-message')
     };
 
     // Initialize the application
@@ -67,6 +90,12 @@
 
         // Download button
         elements.downloadBtn.addEventListener('click', downloadOutput);
+
+        // Import handlers
+        elements.importMizInput.addEventListener('change', handleImportMizSelect);
+        elements.importTxtInput.addEventListener('change', handleImportTxtSelect);
+        elements.importBtn.addEventListener('click', performImport);
+        elements.downloadImportedBtn.addEventListener('click', downloadImportedMiz);
     }
 
     // Check if running in Electron
@@ -351,6 +380,172 @@
         elements.resultsSection.classList.add('d-none');
     }
 
+    // ========== IMPORT FUNCTIONALITY ==========
+
+    // Handle import .miz file selection
+    function handleImportMizSelect(event) {
+        const file = event.target.files[0];
+        if (file && file.name.toLowerCase().endsWith('.miz')) {
+            importMizFile = file;
+            elements.importMizName.textContent = file.name;
+            elements.importMizInfo.classList.remove('d-none');
+            checkImportReady();
+            hideImportError();
+        } else {
+            showImportError('Please select a valid .miz file');
+        }
+    }
+
+    // Handle import .txt file selection
+    function handleImportTxtSelect(event) {
+        const file = event.target.files[0];
+        if (file && file.name.toLowerCase().endsWith('.txt')) {
+            importTxtFile = file;
+            elements.importTxtName.textContent = file.name;
+            elements.importTxtInfo.classList.remove('d-none');
+            checkImportReady();
+            hideImportError();
+        } else {
+            showImportError('Please select a valid .txt file');
+        }
+    }
+
+    // Check if import is ready
+    function checkImportReady() {
+        elements.importBtn.disabled = !(importMizFile && importTxtFile);
+    }
+
+    // Perform import
+    async function performImport() {
+        if (!importMizFile || !importTxtFile) {
+            showImportError('Please select both .miz and .txt files');
+            return;
+        }
+
+        // Show progress
+        showImportProgress();
+        setImportProcessing(true);
+        hideImportError();
+        hideImportSuccess();
+
+        try {
+            // Read the translated text file
+            const txtContent = await readTextFile(importTxtFile);
+
+            updateImportProgress(20, 'Text file loaded...');
+
+            // Get target locale
+            const targetLocale = elements.importLocaleSelect.value;
+
+            // Validate original .miz file
+            updateImportProgress(30, 'Validating .miz file...');
+            const validation = await MizParser.validateMiz(importMizFile);
+
+            if (!validation.valid) {
+                throw new Error(`Invalid .miz file: ${validation.errors.join(', ')}`);
+            }
+
+            // Perform import
+            importedMizBlob = await MizParser.importToMiz(
+                importMizFile,
+                txtContent,
+                targetLocale,
+                (percent, message) => {
+                    updateImportProgress(30 + (percent * 0.7), message);
+                }
+            );
+
+            updateImportProgress(100, 'Import complete!');
+
+            // Show success
+            setTimeout(() => {
+                hideImportProgress();
+                showImportSuccess();
+            }, 500);
+
+        } catch (error) {
+            console.error('Import error:', error);
+            showImportError(error.message || 'An error occurred during import');
+            hideImportProgress();
+        } finally {
+            setImportProcessing(false);
+        }
+    }
+
+    // Download imported .miz file
+    function downloadImportedMiz() {
+        if (!importedMizBlob || !importMizFile) return;
+
+        const baseName = importMizFile.name.replace(/\.miz$/i, '');
+        const locale = elements.importLocaleSelect.value;
+        const fileName = `${baseName}_${locale}.miz`;
+
+        const url = URL.createObjectURL(importedMizBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    // Read text file
+    function readTextFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
+    }
+
+    // Import progress updates
+    function updateImportProgress(percent, message) {
+        elements.importProgressBar.style.width = `${percent}%`;
+        elements.importProgressText.textContent = message;
+    }
+
+    function showImportProgress() {
+        elements.importProgressSection.classList.remove('d-none');
+        updateImportProgress(0, 'Starting...');
+    }
+
+    function hideImportProgress() {
+        elements.importProgressSection.classList.add('d-none');
+    }
+
+    // Import processing state
+    function setImportProcessing(isProcessing) {
+        elements.importBtn.disabled = isProcessing || !(importMizFile && importTxtFile);
+        if (isProcessing) {
+            elements.importText.textContent = 'Importing...';
+            elements.importSpinner.classList.remove('d-none');
+        } else {
+            elements.importText.textContent = 'Import Translation';
+            elements.importSpinner.classList.add('d-none');
+        }
+    }
+
+    // Import error handling
+    function showImportError(message) {
+        elements.importErrorMessage.textContent = message;
+        elements.importErrorSection.classList.remove('d-none');
+    }
+
+    function hideImportError() {
+        elements.importErrorSection.classList.add('d-none');
+    }
+
+    // Import success display
+    function showImportSuccess() {
+        elements.importSuccessSection.classList.remove('d-none');
+    }
+
+    function hideImportSuccess() {
+        elements.importSuccessSection.classList.add('d-none');
+    }
+
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
@@ -363,6 +558,8 @@
         loadFile,
         processFile,
         clearFile,
-        getExtractionOptions
+        getExtractionOptions,
+        performImport,
+        downloadImportedMiz
     };
 })();

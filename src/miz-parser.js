@@ -120,7 +120,7 @@ const MizParser = {
     extractText: function(parsedData, options = {}) {
         const {
             mode = 'auto',
-            categories = Object.keys(this.CATEGORIES),
+            categories = [],
             preferredLocale = 'DEFAULT'
         } = options;
 
@@ -149,35 +149,41 @@ const MizParser = {
             }
         }
 
+        // In auto mode, only extract focused categories (briefings, triggers, radio)
+        // Ignore units, waypoints, tasks per issue requirements
+        const focusedCategories = ['briefings', 'triggers', 'radio'];
+        const categoriesToExtract = mode === 'auto' ? focusedCategories : categories;
+
         // Extract text by category
-        if (mode === 'auto' || categories.includes('briefings')) {
+        if (categoriesToExtract.includes('briefings')) {
             result.extracted.briefings = this.extractBriefings(parsedData.mission, dictionary);
             result.stats.byCategory.briefings = result.extracted.briefings.length;
         }
 
-        if (mode === 'auto' || categories.includes('tasks')) {
-            result.extracted.tasks = this.extractTasks(parsedData.mission, dictionary);
-            result.stats.byCategory.tasks = result.extracted.tasks.length;
-        }
-
-        if (mode === 'auto' || categories.includes('triggers')) {
+        if (categoriesToExtract.includes('triggers')) {
             result.extracted.triggers = this.extractTriggers(parsedData.mission, dictionary);
             result.stats.byCategory.triggers = result.extracted.triggers.length;
         }
 
-        if (mode === 'auto' || categories.includes('units')) {
+        if (categoriesToExtract.includes('radio')) {
+            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary);
+            result.stats.byCategory.radio = result.extracted.radio.length;
+        }
+
+        // Optional categories for manual mode only
+        if (categoriesToExtract.includes('tasks')) {
+            result.extracted.tasks = this.extractTasks(parsedData.mission, dictionary);
+            result.stats.byCategory.tasks = result.extracted.tasks.length;
+        }
+
+        if (categoriesToExtract.includes('units')) {
             result.extracted.units = this.extractUnits(parsedData.mission, dictionary);
             result.stats.byCategory.units = result.extracted.units.length;
         }
 
-        if (mode === 'auto' || categories.includes('waypoints')) {
+        if (categoriesToExtract.includes('waypoints')) {
             result.extracted.waypoints = this.extractWaypoints(parsedData.mission, dictionary);
             result.stats.byCategory.waypoints = result.extracted.waypoints.length;
-        }
-
-        if (mode === 'auto' || categories.includes('radio')) {
-            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary);
-            result.stats.byCategory.radio = result.extracted.radio.length;
         }
 
         // Calculate totals
@@ -212,12 +218,13 @@ const MizParser = {
     },
 
     /**
-     * Clean and trim text
+     * Clean and trim text with strict cleaning per issue requirements
+     * Removes all Lua artifacts: quotes, escapes, tabs, multiple spaces
      */
     cleanText: function(text) {
         if (!text || typeof text !== 'string') return null;
 
-        // Trim whitespace
+        // Initial trim
         text = text.trim();
 
         // Remove empty strings
@@ -228,12 +235,28 @@ const MizParser = {
 
         // Unescape common Lua escape sequences
         text = text.replace(/\\n/g, '\n');
-        text = text.replace(/\\t/g, '\t');
+        text = text.replace(/\\t/g, ' '); // Convert tabs to spaces first
         text = text.replace(/\\"/g, '"');
         text = text.replace(/\\'/g, "'");
         text = text.replace(/\\\\/g, '\\');
 
-        return text.trim() || null;
+        // STRICT CLEANING per issue requirements:
+        // 1. Remove all tabs (replace with space)
+        text = text.replace(/\t/g, ' ');
+
+        // 2. Normalize multiple spaces to single space
+        text = text.replace(/\s+/g, ' ');
+
+        // 3. Remove any remaining escape characters
+        text = text.replace(/\\(?!n)/g, '');
+
+        // 4. Final trim to remove leading/trailing whitespace
+        text = text.trim();
+
+        // 5. Remove empty lines but preserve intentional line breaks
+        text = text.replace(/\n\s*\n/g, '\n');
+
+        return text || null;
     },
 
     /**
@@ -543,33 +566,80 @@ const MizParser = {
     },
 
     /**
-     * Format extracted data as plain text
+     * Format extracted data as plain text with clean prefixes per issue requirements
+     * Format: "Briefing_Blue: Clean text" or "Trigger_Message_5: Clean message"
      */
     formatAsText: function(extractionResult) {
         const lines = [];
-        lines.push('='.repeat(60));
-        lines.push('MIZ Editor - Extracted Text');
-        lines.push(`Locale: ${extractionResult.locale}`);
-        lines.push(`Total Strings: ${extractionResult.stats.totalStrings}`);
-        lines.push(`Unique Strings: ${extractionResult.stats.uniqueStrings}`);
-        lines.push('='.repeat(60));
-        lines.push('');
 
-        for (const [category, items] of Object.entries(extractionResult.extracted)) {
-            if (items.length === 0) continue;
+        // Counter for sequential numbering
+        let triggerIndex = 1;
+        let radioIndex = 1;
 
-            lines.push('-'.repeat(40));
-            lines.push(this.CATEGORIES[category]?.name || category.toUpperCase());
-            lines.push('-'.repeat(40));
+        // Process briefings with specific names
+        if (extractionResult.extracted.briefings) {
+            for (const item of extractionResult.extracted.briefings) {
+                const prefix = this.getCleanPrefix(item.context, 'Briefing');
+                lines.push(`${prefix}: ${item.text}`);
+            }
+        }
 
-            for (const item of items) {
-                lines.push(`${item.category}: [${item.context}]`);
-                lines.push(item.text);
-                lines.push('');
+        // Process triggers with sequential numbering
+        if (extractionResult.extracted.triggers) {
+            for (const item of extractionResult.extracted.triggers) {
+                lines.push(`Trigger_Message_${triggerIndex}: ${item.text}`);
+                triggerIndex++;
+            }
+        }
+
+        // Process radio messages with sequential numbering
+        if (extractionResult.extracted.radio) {
+            for (const item of extractionResult.extracted.radio) {
+                lines.push(`Radio_Message_${radioIndex}: ${item.text}`);
+                radioIndex++;
+            }
+        }
+
+        // Process optional categories if present
+        if (extractionResult.extracted.tasks) {
+            let taskIndex = 1;
+            for (const item of extractionResult.extracted.tasks) {
+                lines.push(`Task_${taskIndex}: ${item.text}`);
+                taskIndex++;
+            }
+        }
+
+        if (extractionResult.extracted.units) {
+            let unitIndex = 1;
+            for (const item of extractionResult.extracted.units) {
+                lines.push(`Unit_${unitIndex}: ${item.text}`);
+                unitIndex++;
+            }
+        }
+
+        if (extractionResult.extracted.waypoints) {
+            let waypointIndex = 1;
+            for (const item of extractionResult.extracted.waypoints) {
+                lines.push(`Waypoint_${waypointIndex}: ${item.text}`);
+                waypointIndex++;
             }
         }
 
         return lines.join('\n');
+    },
+
+    /**
+     * Get clean prefix for briefing contexts
+     */
+    getCleanPrefix: function(context, category) {
+        const contextMap = {
+            'Mission Name': 'Briefing_Mission',
+            'Description': 'Briefing_Description',
+            'Blue Task': 'Briefing_Blue',
+            'Red Task': 'Briefing_Red',
+            'Neutral Task': 'Briefing_Neutral'
+        };
+        return contextMap[context] || `${category}_${context.replace(/[^a-zA-Z0-9]/g, '_')}`;
     },
 
     /**
@@ -598,6 +668,207 @@ const MizParser = {
         }
 
         return JSON.stringify(jsonOutput, null, 2);
+    },
+
+    /**
+     * Parse imported text file back to structured data
+     * @param {string} importedText - The modified .txt file content
+     * @returns {object} Parsed import data with mappings
+     */
+    parseImportedText: function(importedText) {
+        const lines = importedText.split('\n');
+        const mappings = {
+            briefings: {},
+            triggers: [],
+            radio: [],
+            tasks: [],
+            units: [],
+            waypoints: []
+        };
+
+        const linePattern = /^([^:]+):\s*(.*)$/;
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+
+            const match = trimmedLine.match(linePattern);
+            if (!match) continue;
+
+            const [, prefix, text] = match;
+            const cleanText = text.trim();
+
+            if (!cleanText) continue;
+
+            // Map briefings
+            if (prefix.startsWith('Briefing_Mission')) {
+                mappings.briefings.sortie = cleanText;
+            } else if (prefix.startsWith('Briefing_Description')) {
+                mappings.briefings.descriptionText = cleanText;
+            } else if (prefix.startsWith('Briefing_Blue')) {
+                mappings.briefings.descriptionBlueTask = cleanText;
+            } else if (prefix.startsWith('Briefing_Red')) {
+                mappings.briefings.descriptionRedTask = cleanText;
+            } else if (prefix.startsWith('Briefing_Neutral')) {
+                mappings.briefings.descriptionNeutralsTask = cleanText;
+            }
+            // Map triggers
+            else if (prefix.startsWith('Trigger_Message_')) {
+                mappings.triggers.push(cleanText);
+            }
+            // Map radio
+            else if (prefix.startsWith('Radio_Message_')) {
+                mappings.radio.push(cleanText);
+            }
+            // Map optional categories
+            else if (prefix.startsWith('Task_')) {
+                mappings.tasks.push(cleanText);
+            } else if (prefix.startsWith('Unit_')) {
+                mappings.units.push(cleanText);
+            } else if (prefix.startsWith('Waypoint_')) {
+                mappings.waypoints.push(cleanText);
+            }
+        }
+
+        return mappings;
+    },
+
+    /**
+     * Generate Lua dictionary content from mappings
+     * @param {object} mappings - The import mappings
+     * @returns {string} Lua dictionary content
+     */
+    generateLuaDictionary: function(mappings) {
+        const entries = [];
+        let keyIndex = 1;
+
+        // Helper to escape Lua strings
+        const escapeLua = (str) => {
+            return str
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\t/g, '\\t');
+        };
+
+        // Add briefings
+        for (const [key, value] of Object.entries(mappings.briefings)) {
+            if (value) {
+                const dictKey = `DictKey_${key}`;
+                entries.push(`    ["${dictKey}"] = "${escapeLua(value)}"`);
+            }
+        }
+
+        // Add triggers
+        for (const text of mappings.triggers) {
+            const dictKey = `DictKey_Trigger_${keyIndex++}`;
+            entries.push(`    ["${dictKey}"] = "${escapeLua(text)}"`);
+        }
+
+        // Add radio messages
+        for (const text of mappings.radio) {
+            const dictKey = `DictKey_Radio_${keyIndex++}`;
+            entries.push(`    ["${dictKey}"] = "${escapeLua(text)}"`);
+        }
+
+        // Build Lua dictionary
+        const luaContent = `dictionary = {\n${entries.join(',\n')}\n}`;
+        return luaContent;
+    },
+
+    /**
+     * Import translated text back into .miz file
+     * @param {File|ArrayBuffer} originalMizFile - The original .miz file
+     * @param {string} importedText - The translated text content
+     * @param {string} targetLocale - Target locale (e.g., 'RU')
+     * @param {Function} progressCallback - Progress callback
+     * @returns {Promise<Blob>} New .miz file with imported locale
+     */
+    importToMiz: async function(originalMizFile, importedText, targetLocale = 'RU', progressCallback = () => {}) {
+        progressCallback(5, 'Loading original .miz file...');
+
+        // Load original .miz
+        let zip;
+        try {
+            zip = await JSZip.loadAsync(originalMizFile);
+        } catch (e) {
+            throw new Error('Invalid .miz file: Unable to read as ZIP archive');
+        }
+
+        progressCallback(20, 'Parsing imported text...');
+
+        // Parse imported text
+        const mappings = this.parseImportedText(importedText);
+
+        progressCallback(40, 'Generating new locale dictionary...');
+
+        // Generate Lua dictionary
+        const dictionaryContent = this.generateLuaDictionary(mappings);
+
+        progressCallback(60, 'Updating .miz archive...');
+
+        // Add/update locale dictionary in zip
+        const localePath = `l10n/${targetLocale}/dictionary`;
+        zip.file(localePath, dictionaryContent);
+
+        progressCallback(80, 'Finalizing .miz file...');
+
+        // Generate new .miz file
+        const newMizBlob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+
+        progressCallback(100, 'Import complete!');
+
+        return newMizBlob;
+    },
+
+    /**
+     * Validate .miz file structure
+     * @param {File|ArrayBuffer} mizFile - The .miz file to validate
+     * @returns {Promise<object>} Validation result
+     */
+    validateMiz: async function(mizFile) {
+        const result = {
+            valid: true,
+            errors: [],
+            warnings: []
+        };
+
+        try {
+            const zip = await JSZip.loadAsync(mizFile);
+
+            // Check for mission file
+            const missionFile = zip.file('mission');
+            if (!missionFile) {
+                result.valid = false;
+                result.errors.push('Missing mission file');
+                return result;
+            }
+
+            // Try to parse mission file
+            const missionContent = await missionFile.async('string');
+            const mission = LuaParser.parse(missionContent);
+
+            if (!mission || typeof mission !== 'object') {
+                result.valid = false;
+                result.errors.push('Invalid mission file format');
+            }
+
+            // Check for at least DEFAULT locale
+            const defaultDict = zip.file('l10n/DEFAULT/dictionary');
+            if (!defaultDict) {
+                result.warnings.push('No DEFAULT locale dictionary found');
+            }
+
+        } catch (e) {
+            result.valid = false;
+            result.errors.push(`Validation error: ${e.message}`);
+        }
+
+        return result;
     }
 };
 
