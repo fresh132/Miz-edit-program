@@ -55,6 +55,7 @@ const MizParser = {
         const result = {
             mission: null,
             dictionaries: {},
+            mapResources: {},
             availableLocales: [],
             rawStrings: []
         };
@@ -77,7 +78,11 @@ const MizParser = {
 
         // Check for l10n folder
         const l10nPattern = /^l10n\/([^/]+)\/dictionary$/;
+        const mapResourcePattern = /^l10n\/([^/]+)\/mapResource$/;
+        const mapResourceLuaPattern = /^l10n\/([^/]+)\/mapResource\.lua$/;
+
         for (const fileName of fileNames) {
+            // Parse dictionary files
             const match = fileName.match(l10nPattern);
             if (match) {
                 const locale = match[1];
@@ -102,6 +107,28 @@ const MizParser = {
                 if (dictFile) {
                     const dictContent = await dictFile.async('string');
                     result.dictionaries[locale] = LuaParser.parse(dictContent);
+                }
+            }
+
+            // Parse mapResource files (for radio sound resources)
+            const mapResMatch = fileName.match(mapResourcePattern);
+            if (mapResMatch) {
+                const locale = mapResMatch[1];
+                const mapResFile = zip.file(fileName);
+                if (mapResFile) {
+                    const mapResContent = await mapResFile.async('string');
+                    result.mapResources[locale] = LuaParser.parse(mapResContent);
+                }
+            }
+
+            // Also check for mapResource.lua extension
+            const mapResLuaMatch = fileName.match(mapResourceLuaPattern);
+            if (mapResLuaMatch) {
+                const locale = mapResLuaMatch[1];
+                const mapResFile = zip.file(fileName);
+                if (mapResFile) {
+                    const mapResContent = await mapResFile.async('string');
+                    result.mapResources[locale] = LuaParser.parse(mapResContent);
                 }
             }
         }
@@ -171,7 +198,8 @@ const MizParser = {
         }
 
         if (categoriesToExtract.includes('radio')) {
-            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary);
+            const mapResource = parsedData.mapResources?.[result.locale] || parsedData.mapResources?.['DEFAULT'];
+            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary, mapResource);
             result.stats.byCategory.radio = result.extracted.radio.length;
         }
 
@@ -356,56 +384,97 @@ const MizParser = {
 
     /**
      * Extract trigger messages
-     * Per issue #7: Only extract actual trigger messages, not rule comments
-     * Per issue #9: Skip radio-specific actions to avoid duplicates
+     * Per issue #13: Support modern DCS mission format (2020-2025)
+     * Modern missions use mission.triggers.triggers or mission.trig with Lua code strings
+     * Extracts text from outText(), outTextForGroup(), outTextForCoalition(), outTextForUnit()
      */
     extractTriggers: function(mission, dictionary) {
         const results = [];
+        const seen = new Set();
 
-        if (!mission?.trigrules) return results;
+        const addUnique = (text, context) => {
+            const clean = this.cleanText(text);
+            if (clean && !seen.has(clean)) {
+                seen.add(clean);
+                results.push({
+                    category: 'Trigger',
+                    context: context || 'Trigger Message',
+                    text: clean
+                });
+            }
+        };
 
-        const trigrules = mission.trigrules;
+        // 1. New format: mission.triggers.triggers (modern DCS missions 2020-2025)
+        if (mission?.triggers?.triggers) {
+            const triggers = Array.isArray(mission.triggers.triggers)
+                ? mission.triggers.triggers
+                : Object.values(mission.triggers.triggers);
 
-        // Trigrules can be an object with numeric keys
-        const rules = Array.isArray(trigrules) ? trigrules : Object.values(trigrules);
-
-        for (const rule of rules) {
-            if (!rule || typeof rule !== 'object') continue;
-
-            // Check for message actions
-            if (rule.actions) {
-                const actions = Array.isArray(rule.actions) ? rule.actions : Object.values(rule.actions);
+            for (const trig of triggers) {
+                if (!trig?.actions) continue;
+                const actions = Array.isArray(trig.actions) ? trig.actions : Object.values(trig.actions);
                 for (const action of actions) {
-                    if (!action) continue;
+                    if (typeof action === 'string') {
+                        // Ищем outText, outTextForGroup, outTextForCoalition, outTextForUnit
+                        // Pattern matches: outText(..., "text", ...) or outTextFor*(..., "text", ...)
+                        const matches = action.matchAll(/outText(?:For\w+)?\s*\([^)]*?["']([^"']+)["']/g);
+                        for (const match of matches) {
+                            const text = match[1];
+                            if (text) addUnique(text, trig.comment || 'Trigger Action');
+                        }
+                    }
+                }
+            }
+        }
 
-                    // Skip radio-specific actions (they're handled by extractRadioMessages)
-                    // Radio actions have radioText field or action ID contains 'radio' or 'transmit'
-                    const isRadioAction =
-                        action.radioText ||
-                        (action.id && typeof action.id === 'string' &&
-                         (action.id.toLowerCase().includes('radio') ||
-                          action.id.toLowerCase().includes('transmit')));
+        // 2. Alternative new format: mission.trig.actions (if exists)
+        if (mission?.trig?.actions) {
+            const actions = Array.isArray(mission.trig.actions) ? mission.trig.actions : Object.values(mission.trig.actions);
+            for (const action of actions) {
+                if (typeof action === 'string') {
+                    const matches = action.matchAll(/outText(?:For\w+)?\s*\([^)]*?["']([^"']+)["']/g);
+                    for (const match of matches) {
+                        const text = match[1];
+                        if (text) addUnique(text, 'Legacy Trigger');
+                    }
+                }
+            }
+        }
 
-                    if (isRadioAction) continue;
+        // 3. Old format: mission.trigrules (backward compatibility)
+        if (mission?.trigrules) {
+            const trigrules = mission.trigrules;
+            const rules = Array.isArray(trigrules) ? trigrules : Object.values(trigrules);
 
-                    // Look for text/message properties (but not file, as that's often used for radio)
-                    for (const key of ['text', 'message']) {
-                        if (action[key]) {
-                            const text = this.resolveText(action[key], dictionary);
-                            if (text) {
-                                results.push({
-                                    category: 'Trigger',
-                                    context: rule.comment || 'Trigger Message',
-                                    text: text
-                                });
+            for (const rule of rules) {
+                if (!rule || typeof rule !== 'object') continue;
+
+                if (rule.actions) {
+                    const actions = Array.isArray(rule.actions) ? rule.actions : Object.values(rule.actions);
+                    for (const action of actions) {
+                        if (!action) continue;
+
+                        // Skip radio-specific actions (they're handled by extractRadioMessages)
+                        const isRadioAction =
+                            action.radioText ||
+                            (action.id && typeof action.id === 'string' &&
+                             (action.id.toLowerCase().includes('radio') ||
+                              action.id.toLowerCase().includes('transmit')));
+
+                        if (isRadioAction) continue;
+
+                        // Look for text/message properties
+                        for (const key of ['text', 'message']) {
+                            if (action[key]) {
+                                const text = this.resolveText(action[key], dictionary);
+                                if (text) {
+                                    addUnique(text, rule.comment || 'Trigger Message');
+                                }
                             }
                         }
                     }
                 }
             }
-
-            // NOTE: Removed extraction of rule.comment itself per issue #7
-            // Rule comments are metadata, not localizable content
         }
 
         return results;
@@ -498,27 +567,90 @@ const MizParser = {
 
     /**
      * Extract radio messages
-     * Searches for radio-specific fields (not general trigger messages)
-     * Per issue #7: Radio messages should be distinct from trigger messages
+     * Per issue #13: Support modern DCS mission format (2020-2025)
+     * Extracts subtitles from radioTransmission() calls and related outText() calls
+     * @param {object} mission - Mission data
+     * @param {object} dictionary - Dictionary for DictKey resolution
+     * @param {object} mapResource - mapResource.lua content for ResKey resolution
      */
-    extractRadioMessages: function(mission, dictionary) {
+    extractRadioMessages: function(mission, dictionary, mapResource) {
         const results = [];
-        const seenTexts = new Set(); // Prevent duplicates
+        const seen = new Set();
 
-        // Helper to add unique radio message
-        const addRadioMessage = (text, context) => {
-            if (text && !seenTexts.has(text)) {
-                seenTexts.add(text);
+        const addUnique = (text, context) => {
+            const clean = this.cleanText(text);
+            if (clean && !seen.has(clean)) {
+                seen.add(clean);
                 results.push({
                     category: 'Radio',
-                    context: context,
-                    text: text
+                    context: context || 'Radio Transmission',
+                    text: clean
                 });
             }
         };
 
-        // Search for radio-specific keys in trigrules actions
-        // Look for specific radio-related action IDs (based on DCS action types)
+        // Search in actions for radioTransmission + outText (subtitles)
+        const searchInActions = (actions, contextPrefix) => {
+            if (!actions) return;
+            const arr = Array.isArray(actions) ? actions : Object.values(actions);
+            for (const action of arr) {
+                if (typeof action !== 'string') continue;
+
+                // Subtitles from radio (outText with radio context)
+                const subtitleMatches = action.matchAll(/outText(?:For\w+)?\s*\([^)]*?["']([^"']+)["']/g);
+                for (const match of subtitleMatches) {
+                    if (match[1]) addUnique(match[1], contextPrefix || 'Radio Subtitle');
+                }
+
+                // Radio transmission audio files (informational)
+                if (action.includes('radioTransmission')) {
+                    const audioMatches = action.matchAll(/["']([^"']*\.ogg)["']/g);
+                    for (const match of audioMatches) {
+                        if (match[1]) {
+                            addUnique(`[Radio Sound] ${match[1]}`, contextPrefix || 'Radio Audio');
+                        }
+                    }
+                }
+
+                // Check for ResKey references in mapResource
+                if (mapResource && action.includes('ResKey_')) {
+                    const resKeyMatches = action.matchAll(/ResKey_(\w+)/g);
+                    for (const match of resKeyMatches) {
+                        const resKey = `ResKey_${match[1]}`;
+                        const path = mapResource[resKey];
+                        if (path && typeof path === 'string') {
+                            addUnique(`[Resource] ${path}`, contextPrefix || 'Radio Resource');
+                        }
+                    }
+                }
+            }
+        };
+
+        // 1. New format: mission.triggers.triggers
+        if (mission?.triggers?.triggers) {
+            const triggers = Array.isArray(mission.triggers.triggers)
+                ? mission.triggers.triggers
+                : Object.values(mission.triggers.triggers);
+            for (const t of triggers) {
+                if (t?.actions) {
+                    // Check if this trigger contains radio-related actions
+                    const actionsStr = JSON.stringify(t.actions);
+                    if (actionsStr.includes('radioTransmission') || actionsStr.includes('Radio')) {
+                        searchInActions(t.actions, t.comment || 'Radio Trigger');
+                    }
+                }
+            }
+        }
+
+        // 2. Alternative new format: mission.trig
+        if (mission?.trig?.actions) {
+            const actionsStr = JSON.stringify(mission.trig.actions);
+            if (actionsStr.includes('radioTransmission') || actionsStr.includes('Radio')) {
+                searchInActions(mission.trig.actions, 'Legacy Radio');
+            }
+        }
+
+        // 3. Old format: mission.trigrules (backward compatibility)
         if (mission?.trigrules) {
             const rules = Array.isArray(mission.trigrules) ? mission.trigrules : Object.values(mission.trigrules);
 
@@ -530,9 +662,7 @@ const MizParser = {
                 for (const action of actions) {
                     if (!action) continue;
 
-                    // DCS radio actions typically have specific action IDs:
-                    // 'radioTransmission', 'transmitMessage', etc.
-                    // Check for radio-specific keys
+                    // DCS radio actions typically have specific action IDs
                     if (action.radioText || action.file ||
                         (action.id && typeof action.id === 'string' && action.id.toLowerCase().includes('radio'))) {
 
@@ -540,7 +670,7 @@ const MizParser = {
                         if (textKey) {
                             const text = this.resolveText(textKey, dictionary);
                             if (text) {
-                                addRadioMessage(text, rule.comment || 'Radio Message');
+                                addUnique(text, rule.comment || 'Radio Message');
                             }
                         }
                     }
@@ -548,7 +678,7 @@ const MizParser = {
             }
         }
 
-        // Search for radio messages in coalition groups (unit radio settings)
+        // 4. Search for radio messages in coalition groups (unit radio settings)
         if (mission?.coalition) {
             const coalitions = ['blue', 'red', 'neutrals'];
 
@@ -556,15 +686,13 @@ const MizParser = {
                 const coalitionData = mission.coalition[coalition];
                 if (!coalitionData) continue;
 
-                // Search through groups for radio frequency/messages
                 this.traverseGroups(coalitionData, (group, path) => {
-                    // Check for radio-related properties
                     if (group.radio || group.frequency) {
                         ['radioText', 'message', 'radioMessage'].forEach(key => {
                             if (group[key]) {
                                 const text = this.resolveText(group[key], dictionary);
                                 if (text) {
-                                    addRadioMessage(text, path);
+                                    addUnique(text, path);
                                 }
                             }
                         });
