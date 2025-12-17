@@ -357,6 +357,7 @@ const MizParser = {
     /**
      * Extract trigger messages
      * Per issue #7: Only extract actual trigger messages, not rule comments
+     * Per issue #9: Skip radio-specific actions to avoid duplicates
      */
     extractTriggers: function(mission, dictionary) {
         const results = [];
@@ -377,8 +378,18 @@ const MizParser = {
                 for (const action of actions) {
                     if (!action) continue;
 
-                    // Look for text/message properties
-                    for (const key of ['text', 'message', 'file']) {
+                    // Skip radio-specific actions (they're handled by extractRadioMessages)
+                    // Radio actions have radioText field or action ID contains 'radio' or 'transmit'
+                    const isRadioAction =
+                        action.radioText ||
+                        (action.id && typeof action.id === 'string' &&
+                         (action.id.toLowerCase().includes('radio') ||
+                          action.id.toLowerCase().includes('transmit')));
+
+                    if (isRadioAction) continue;
+
+                    // Look for text/message properties (but not file, as that's often used for radio)
+                    for (const key of ['text', 'message']) {
                         if (action[key]) {
                             const text = this.resolveText(action[key], dictionary);
                             if (text) {

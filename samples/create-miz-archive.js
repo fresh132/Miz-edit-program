@@ -176,6 +176,7 @@ const missionContent = `mission =
             {
                 [1] =
                 {
+                    ["id"] = "MessageToAll",
                     ["text"] = "DictKey_MissionStart",
                 },
             },
@@ -187,6 +188,7 @@ const missionContent = `mission =
             {
                 [1] =
                 {
+                    ["id"] = "MessageToAll",
                     ["text"] = "DictKey_ObjectiveComplete",
                 },
             },
@@ -198,7 +200,32 @@ const missionContent = `mission =
             {
                 [1] =
                 {
+                    ["id"] = "MessageToAll",
                     ["text"] = "DictKey_Warning",
+                },
+            },
+        },
+        [4] =
+        {
+            ["comment"] = "Radio Call 1",
+            ["actions"] =
+            {
+                [1] =
+                {
+                    ["id"] = "radioTransmission",
+                    ["radioText"] = "DictKey_RadioCall1",
+                },
+            },
+        },
+        [5] =
+        {
+            ["comment"] = "Radio Call 2",
+            ["actions"] =
+            {
+                [1] =
+                {
+                    ["id"] = "transmitMessage",
+                    ["file"] = "DictKey_RadioCall2",
                 },
             },
         },

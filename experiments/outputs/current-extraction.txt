@@ -11,3 +11,8 @@ Briefing_Neutral: Neutral forces: Observe and report only.
 Trigger_1: Welcome to the training mission. All pilots report to your assigned aircraft.
 Trigger_2: Excellent work! All objectives have been completed. Return to base.
 Trigger_3: Warning: Enemy aircraft detected. All fighters scramble immediately.
+
+РАДИОСООБЩЕНИЯ: / RADIO MESSAGES:
+
+Radio_1: Overlord, Eagle Flight checking in, on station at Angels 25.
+Radio_2: Eagle Flight, Overlord, copy. Maintain CAP pattern and await further instructions.

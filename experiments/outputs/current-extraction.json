@@ -1,8 +1,8 @@
 {
   "metadata": {
     "locale": "DEFAULT",
-    "totalStrings": 8,
-    "uniqueStrings": 8
+    "totalStrings": 10,
+    "uniqueStrings": 10
   },
   "strings": {
     "briefings_1": {
@@ -44,6 +44,16 @@
       "category": "Trigger",
       "context": "Warning Message",
       "text": "Warning: Enemy aircraft detected. All fighters scramble immediately."
+    },
+    "radio_9": {
+      "category": "Radio",
+      "context": "Radio Call 1",
+      "text": "Overlord, Eagle Flight checking in, on station at Angels 25."
+    },
+    "radio_10": {
+      "category": "Radio",
+      "context": "Radio Call 2",
+      "text": "Eagle Flight, Overlord, copy. Maintain CAP pattern and await further instructions."
     }
   }
 }

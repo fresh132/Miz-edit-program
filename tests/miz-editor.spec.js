@@ -204,6 +204,53 @@ test.describe('Miz Editor - Processing', () => {
     const outputText = await page.locator('#output-preview').inputValue();
     expect(() => JSON.parse(outputText)).not.toThrow();
   });
+
+  test('should extract all 3 text types: briefings, triggers, and radio messages', async ({ page }) => {
+    const sampleMizPath = path.join(__dirname, '..', 'samples', 'sample_mission.miz');
+
+    if (!fs.existsSync(sampleMizPath)) {
+      test.skip();
+      return;
+    }
+
+    // Upload and process file
+    const fileInput = page.locator('#file-input');
+    await fileInput.setInputFiles(sampleMizPath);
+    await page.locator('#process-btn').click();
+
+    // Wait for results
+    await expect(page.locator('#results-section')).not.toHaveClass(/d-none/, { timeout: 10000 });
+
+    // Get the output text
+    const outputText = await page.locator('#output-preview').inputValue();
+
+    // Verify all three required sections are present
+    expect(outputText).toContain('БРИФИНГ:');
+    expect(outputText).toContain('BRIEFING:');
+    expect(outputText).toContain('ТРИГГЕРЫ:');
+    expect(outputText).toContain('TRIGGERS:');
+    expect(outputText).toContain('РАДИОСООБЩЕНИЯ:');
+    expect(outputText).toContain('RADIO MESSAGES:');
+
+    // Verify specific content from each category
+    // Briefings
+    expect(outputText).toContain('Sample Training Mission');
+    expect(outputText).toContain('Blue coalition objective');
+
+    // Triggers
+    expect(outputText).toContain('Welcome to the training mission');
+    expect(outputText).toContain('All objectives have been completed');
+
+    // Radio messages
+    expect(outputText).toContain('Overlord, Eagle Flight checking in');
+    expect(outputText).toContain('Maintain CAP pattern');
+
+    // Verify extraction stats show all categories have items
+    const statsText = await page.locator('#extraction-stats').textContent();
+    expect(statsText).toContain('briefings');
+    expect(statsText).toContain('triggers');
+    expect(statsText).toContain('radio');
+  });
 });
 
 test.describe('Miz Editor - Accessibility', () => {
