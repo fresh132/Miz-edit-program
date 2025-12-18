@@ -219,14 +219,13 @@ const MizParser = {
             result.stats.byCategory.waypoints = result.extracted.waypoints.length;
         }
 
-        // Критически важный fallback для современных миссий (2020-2025)
-        if (result.extracted.triggers && result.extracted.triggers.length === 0) {
-            result.extracted.triggers = this.extractTriggers(parsedData.mission, dictionary);
+        if ((!result.extracted.triggers || result.extracted.triggers.length === 0) && dictionary) {
+            result.extracted.triggers = this._extractFromDictionary(dictionary, ['DictKey_ActionText_'], 'Trigger');
             result.stats.byCategory.triggers = result.extracted.triggers.length;
         }
-        if (result.extracted.radio && result.extracted.radio.length === 0) {
-            const mapResource = parsedData.mapResources?.[result.locale] || parsedData.mapResources?.['DEFAULT'];
-            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary, mapResource);
+
+        if ((!result.extracted.radio || result.extracted.radio.length === 0) && dictionary) {
+            result.extracted.radio = this._extractFromDictionary(dictionary, ['DictKey_subtitle_', 'DictKey_ActionRadioText_'], 'Radio');
             result.stats.byCategory.radio = result.extracted.radio.length;
         }
 
