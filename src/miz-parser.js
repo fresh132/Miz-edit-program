@@ -219,26 +219,6 @@ const MizParser = {
             result.stats.byCategory.waypoints = result.extracted.waypoints.length;
         }
 
-        // === РАБОЧИЙ FALLBACK ДЛЯ СОВРЕМЕННЫХ МИССИЙ 2020–2025 ===
-        // Если основной парсинг ничего не нашёл — берём напрямую из dictionary
-        if ((!result.extracted.triggers || result.extracted.triggers.length === 0) && dictionary) {
-            result.extracted.triggers = this._extractFromDictionary(
-                dictionary,
-                ['DictKey_ActionText_'],
-                'Trigger'
-            );
-            result.stats.byCategory.triggers = result.extracted.triggers.length;
-        }
-
-        if ((!result.extracted.radio || result.extracted.radio.length === 0) && dictionary) {
-            result.extracted.radio = this._extractFromDictionary(
-                dictionary,
-                ['DictKey_subtitle_', 'DictKey_ActionRadioText_'],
-                'Radio'
-            );
-            result.stats.byCategory.radio = result.extracted.radio.length;
-        }
-
         // Calculate totals
         const allStrings = [];
         for (const category of Object.keys(result.extracted)) {
