@@ -1075,6 +1075,8 @@ const MizParser = {
 
     /**
      * Import translated text back into .miz file
+     * Per Issue #26: Copy ALL files from DEFAULT except dictionary,
+     * and merge dictionary preserving non-translatable strings
      * @param {File|ArrayBuffer} originalMizFile - The original .miz file
      * @param {string} importedText - The translated text content
      * @param {string} targetLocale - Target locale (e.g., 'RU')
@@ -1089,20 +1091,46 @@ const MizParser = {
         try {
             zip = await JSZip.loadAsync(originalMizFile);
         } catch (e) {
-            throw new Error('Invalid .miz file: Unable to read as ZIP archive');
+            throw new Error(`Invalid .miz file: Unable to read as ZIP archive. Error: ${e.message}`);
         }
 
-        progressCallback(20, 'Parsing imported text...');
+        progressCallback(15, 'Copying DEFAULT locale files...');
+
+        // Issue #26: Copy ALL files from DEFAULT to target locale except dictionary
+        const allFiles = Object.keys(zip.files);
+        const defaultFiles = allFiles.filter(f => f.startsWith('l10n/DEFAULT/'));
+
+        for (const defaultPath of defaultFiles) {
+            const file = zip.file(defaultPath);
+            // Skip directories and dictionary file
+            if (!file || file.dir || defaultPath.endsWith('dictionary')) {
+                continue;
+            }
+
+            // Copy to target locale
+            const newPath = defaultPath.replace('l10n/DEFAULT/', `l10n/${targetLocale}/`);
+            const content = await file.async('arraybuffer');
+            zip.file(newPath, content);
+
+            progressCallback(15 + Math.random() * 5, `Copying ${defaultPath}...`);
+        }
+
+        progressCallback(25, 'Parsing imported text...');
 
         // Parse imported text
         const mappings = this.parseImportedText(importedText);
 
-        progressCallback(40, 'Generating new locale dictionary...');
+        progressCallback(40, 'Merging with DEFAULT dictionary...');
 
-        // Generate Lua dictionary
-        const dictionaryContent = this.generateLuaDictionary(mappings);
+        // Issue #26: Merge dictionary preserving non-translatable strings
+        const mergedDictionary = await this.mergeDictionaryWithDefault(zip, mappings, targetLocale);
 
-        progressCallback(60, 'Updating .miz archive...');
+        progressCallback(60, 'Generating new locale dictionary...');
+
+        // Generate Lua dictionary from merged data
+        const dictionaryContent = this.generateLuaDictionaryFromMerged(mergedDictionary);
+
+        progressCallback(70, 'Updating .miz archive...');
 
         // Add/update locale dictionary in zip
         const localePath = `l10n/${targetLocale}/dictionary`;
@@ -1120,6 +1148,134 @@ const MizParser = {
         progressCallback(100, 'Import complete!');
 
         return newMizBlob;
+    },
+
+    /**
+     * Merge dictionary with DEFAULT preserving non-translatable strings
+     * Per Issue #26: Preserve all strings except triggers, radio, briefings
+     * @param {JSZip} zip - The zip archive
+     * @param {object} mappings - Import mappings with translated strings
+     * @param {string} targetLocale - Target locale
+     * @returns {Promise<object>} Merged dictionary entries
+     */
+    mergeDictionaryWithDefault: async function(zip, mappings, targetLocale) {
+        const merged = {};
+
+        // Read DEFAULT dictionary
+        const defaultDictFile = zip.file('l10n/DEFAULT/dictionary');
+        if (defaultDictFile) {
+            const defaultDictContent = await defaultDictFile.async('string');
+            const defaultDict = LuaParser.parse(defaultDictContent);
+
+            if (defaultDict) {
+                // Identify which keys are translatable (triggers, radio, briefings)
+                const translatableKeys = this.identifyTranslatableKeys(defaultDict);
+
+                // Copy all non-translatable keys from DEFAULT
+                for (const [key, value] of Object.entries(defaultDict)) {
+                    if (!translatableKeys.has(key)) {
+                        merged[key] = value;
+                    }
+                }
+            }
+        }
+
+        // Add translated strings for briefings
+        const briefingKeyMap = {
+            'sortie': 'DictKey_sortie',
+            'descriptionText': 'DictKey_descriptionText',
+            'descriptionBlueTask': 'DictKey_descriptionBlueTask',
+            'descriptionRedTask': 'DictKey_descriptionRedTask',
+            'descriptionNeutralsTask': 'DictKey_descriptionNeutralsTask'
+        };
+
+        for (const [key, value] of Object.entries(mappings.briefings)) {
+            if (value) {
+                const dictKey = briefingKeyMap[key] || `DictKey_${key}`;
+                merged[dictKey] = value;
+            }
+        }
+
+        // Add translated triggers with auto-generated keys
+        let triggerIndex = 1;
+        for (const text of mappings.triggers) {
+            const dictKey = `DictKey_Trigger_${triggerIndex++}`;
+            merged[dictKey] = text;
+        }
+
+        // Add translated radio messages with auto-generated keys
+        let radioIndex = 1;
+        for (const text of mappings.radio) {
+            const dictKey = `DictKey_Radio_${radioIndex++}`;
+            merged[dictKey] = text;
+        }
+
+        return merged;
+    },
+
+    /**
+     * Identify which dictionary keys are translatable
+     * Per Issue #26: Triggers, radio, and briefings are translatable
+     * @param {object} dictionary - The dictionary to analyze
+     * @returns {Set<string>} Set of translatable key names
+     */
+    identifyTranslatableKeys: function(dictionary) {
+        const translatable = new Set();
+
+        for (const key of Object.keys(dictionary)) {
+            // Triggers: keys containing ActionText, Trigger
+            if (key.includes('ActionText') || key.includes('Trigger')) {
+                translatable.add(key);
+                continue;
+            }
+
+            // Radio: keys containing subtitle, Radio, ActionRadioText
+            if (key.includes('subtitle') || key.includes('Radio') || key.includes('ActionRadioText')) {
+                translatable.add(key);
+                continue;
+            }
+
+            // Briefings: specific keys
+            if (key.includes('sortie') || key.includes('description') ||
+                key.includes('Task') && (key.includes('Blue') || key.includes('Red') || key.includes('Neutral'))) {
+                translatable.add(key);
+                continue;
+            }
+        }
+
+        return translatable;
+    },
+
+    /**
+     * Generate Lua dictionary from merged entries
+     * @param {object} mergedDict - Merged dictionary entries
+     * @returns {string} Lua dictionary content
+     */
+    generateLuaDictionaryFromMerged: function(mergedDict) {
+        const entries = [];
+
+        // Helper to escape Lua strings
+        const escapeLua = (str) => {
+            if (typeof str !== 'string') {
+                str = String(str);
+            }
+            return str
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\t/g, '\\t');
+        };
+
+        // Sort keys for consistent output
+        const sortedKeys = Object.keys(mergedDict).sort();
+
+        for (const key of sortedKeys) {
+            const value = mergedDict[key];
+            entries.push(`    ["${key}"] = "${escapeLua(value)}"`);
+        }
+
+        const luaContent = `dictionary = {\n${entries.join(',\n')}\n}`;
+        return luaContent;
     },
 
     /**
