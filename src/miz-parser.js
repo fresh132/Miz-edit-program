@@ -3,6 +3,15 @@
  * Handles .miz file extraction and parsing
  */
 
+// Load LuaParser in Node.js environment
+let LuaParser;
+if (typeof module !== 'undefined' && module.exports) {
+    LuaParser = require('./lua-parser.js');
+} else {
+    // In browser, LuaParser is loaded globally
+    LuaParser = window.LuaParser;
+}
+
 const MizParser = {
     /**
      * Categories of extractable text
@@ -845,10 +854,10 @@ const MizParser = {
         // TRIGGERS SECTION
         if (extractionResult.extracted.triggers && extractionResult.extracted.triggers.length > 0) {
             const triggerLines = ['ТРИГГЕРЫ: / TRIGGERS:', ''];
-            let triggerIndex = 1;
             for (const item of extractionResult.extracted.triggers) {
-                triggerLines.push(`Trigger_${triggerIndex}: ${item.text}`);
-                triggerIndex++;
+                // Include the original DictKey in the prefix to preserve key mapping during import
+                const prefix = item.context || `Trigger_${triggerLines.length - 2}`;
+                triggerLines.push(`${prefix}: ${item.text}`);
             }
             sections.push(triggerLines.join('\n'));
         }
@@ -856,10 +865,10 @@ const MizParser = {
         // RADIO MESSAGES SECTION
         if (extractionResult.extracted.radio && extractionResult.extracted.radio.length > 0) {
             const radioLines = ['РАДИОСООБЩЕНИЯ: / RADIO MESSAGES:', ''];
-            let radioIndex = 1;
             for (const item of extractionResult.extracted.radio) {
-                radioLines.push(`Radio_${radioIndex}: ${item.text}`);
-                radioIndex++;
+                // Include the original DictKey in the prefix to preserve key mapping during import
+                const prefix = item.context || `Radio_${radioLines.length - 2}`;
+                radioLines.push(`${prefix}: ${item.text}`);
             }
             sections.push(radioLines.join('\n'));
         }
@@ -954,7 +963,9 @@ const MizParser = {
             radio: [],
             tasks: [],
             units: [],
-            waypoints: []
+            waypoints: [],
+            // New: Store exact DictKey-to-text mappings
+            keyMappings: {}
         };
 
         const linePattern = /^([^:]+):\s*(.*)$/;
@@ -997,6 +1008,19 @@ const MizParser = {
 
             if (!cleanText) continue;
 
+            // Check if prefix is a DictKey (new format with exact key preservation)
+            if (prefix.startsWith('DictKey_')) {
+                mappings.keyMappings[prefix] = cleanText;
+                // Also add to category arrays for backward compatibility
+                if (prefix.includes('ActionText') || prefix.includes('Trigger')) {
+                    mappings.triggers.push(cleanText);
+                } else if (prefix.includes('Radio') || prefix.includes('subtitle')) {
+                    mappings.radio.push(cleanText);
+                }
+                continue;
+            }
+
+            // Legacy format handling (old Trigger_1, Radio_1 format)
             // Map briefings
             if (prefix.startsWith('Briefing_Mission')) {
                 mappings.briefings.sortie = cleanText;
@@ -1009,11 +1033,11 @@ const MizParser = {
             } else if (prefix.startsWith('Briefing_Neutral')) {
                 mappings.briefings.descriptionNeutralsTask = cleanText;
             }
-            // Map triggers (both old and new format)
+            // Map triggers (old format)
             else if (prefix.startsWith('Trigger_Message_') || prefix.startsWith('Trigger_')) {
                 mappings.triggers.push(cleanText);
             }
-            // Map radio (both old and new format)
+            // Map radio (old format)
             else if (prefix.startsWith('Radio_Message_') || prefix.startsWith('Radio_')) {
                 mappings.radio.push(cleanText);
             }
@@ -1184,7 +1208,34 @@ const MizParser = {
         // Create translation mapping from extracted format to DictKey format
         const translations = {};
 
-        // Build translation map for briefings
+        // Prefer exact key mappings from new format (Issue #30 fix)
+        if (mappings.keyMappings && Object.keys(mappings.keyMappings).length > 0) {
+            // Use exact DictKey-to-text mappings (new format)
+            Object.assign(translations, mappings.keyMappings);
+        } else {
+            // Fallback to old logic for legacy format (old Trigger_1, Radio_1 format)
+            // Build translation map for triggers
+            const existingTriggerKeys = Object.keys(defaultDict).filter(k =>
+                k.includes('ActionText') || k.includes('Trigger')
+            ).sort();
+
+            mappings.triggers.forEach((text, index) => {
+                const dictKey = existingTriggerKeys[index] || `DictKey_Trigger_${index + 1}`;
+                translations[dictKey] = text;
+            });
+
+            // Build translation map for radio
+            const existingRadioKeys = Object.keys(defaultDict).filter(k =>
+                k.includes('subtitle') || k.includes('Radio') || k.includes('ActionRadioText')
+            ).sort();
+
+            mappings.radio.forEach((text, index) => {
+                const dictKey = existingRadioKeys[index] || `DictKey_Radio_${index + 1}`;
+                translations[dictKey] = text;
+            });
+        }
+
+        // Build translation map for briefings (same for both formats)
         const briefingKeyMap = {
             'sortie': 'DictKey_sortie',
             'descriptionText': 'DictKey_descriptionText',
@@ -1199,27 +1250,6 @@ const MizParser = {
                 translations[dictKey] = value;
             }
         }
-
-        // Build translation map for triggers
-        // Match existing trigger keys in DEFAULT or add new ones
-        const existingTriggerKeys = Object.keys(defaultDict).filter(k =>
-            k.includes('ActionText') || k.includes('Trigger')
-        ).sort();
-
-        mappings.triggers.forEach((text, index) => {
-            const dictKey = existingTriggerKeys[index] || `DictKey_Trigger_${index + 1}`;
-            translations[dictKey] = text;
-        });
-
-        // Build translation map for radio
-        const existingRadioKeys = Object.keys(defaultDict).filter(k =>
-            k.includes('subtitle') || k.includes('Radio') || k.includes('ActionRadioText')
-        ).sort();
-
-        mappings.radio.forEach((text, index) => {
-            const dictKey = existingRadioKeys[index] || `DictKey_Radio_${index + 1}`;
-            translations[dictKey] = text;
-        });
 
         // Now process the raw dictionary line by line, preserving format
         let result = defaultDictRaw;
