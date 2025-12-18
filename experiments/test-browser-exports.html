@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Browser Exports</title>
+</head>
+<body>
+    <h1>Testing Browser Exports</h1>
+    <div id="results"></div>
+
+    <script src="../src/lua-parser.js"></script>
+    <script src="../src/miz-parser.js"></script>
+    <script>
+        const results = document.getElementById('results');
+
+        // Check if LuaParser is defined
+        if (typeof LuaParser !== 'undefined') {
+            results.innerHTML += '<p style="color: green;">✓ LuaParser is defined</p>';
+            results.innerHTML += '<p>LuaParser type: ' + typeof LuaParser + '</p>';
+        } else {
+            results.innerHTML += '<p style="color: red;">✗ LuaParser is NOT defined</p>';
+        }
+
+        // Check if MizParser is defined
+        if (typeof MizParser !== 'undefined') {
+            results.innerHTML += '<p style="color: green;">✓ MizParser is defined</p>';
+            results.innerHTML += '<p>MizParser type: ' + typeof MizParser + '</p>';
+        } else {
+            results.innerHTML += '<p style="color: red;">✗ MizParser is NOT defined</p>';
+        }
+
+        // Check window object
+        results.innerHTML += '<p>window.LuaParser: ' + typeof window.LuaParser + '</p>';
+        results.innerHTML += '<p>window.MizParser: ' + typeof window.MizParser + '</p>';
+
+        // Check module
+        results.innerHTML += '<p>typeof module: ' + typeof module + '</p>';
+        results.innerHTML += '<p>typeof window: ' + typeof window + '</p>';
+    </script>
+</body>
+</html>
