@@ -219,6 +219,17 @@ const MizParser = {
             result.stats.byCategory.waypoints = result.extracted.waypoints.length;
         }
 
+        // Критически важный fallback для современных миссий (2020-2025)
+        if (result.extracted.triggers && result.extracted.triggers.length === 0) {
+            result.extracted.triggers = this.extractTriggers(parsedData.mission, dictionary);
+            result.stats.byCategory.triggers = result.extracted.triggers.length;
+        }
+        if (result.extracted.radio && result.extracted.radio.length === 0) {
+            const mapResource = parsedData.mapResources?.[result.locale] || parsedData.mapResources?.['DEFAULT'];
+            result.extracted.radio = this.extractRadioMessages(parsedData.mission, dictionary, mapResource);
+            result.stats.byCategory.radio = result.extracted.radio.length;
+        }
+
         // Calculate totals
         const allStrings = [];
         for (const category of Object.keys(result.extracted)) {
@@ -254,9 +265,9 @@ const MizParser = {
 
         // Mark as complete if all required categories have content
         result.validation.isComplete =
-            result.extracted.briefings && result.extracted.briefings.length > 0 &&
-            result.extracted.triggers && result.extracted.triggers.length > 0 &&
-            result.extracted.radio && result.extracted.radio.length > 0;
+            result.extracted.briefings?.length > 0 &&
+            result.extracted.triggers?.length > 0 &&
+            result.extracted.radio?.length > 0;
 
         return result;
     },
@@ -321,6 +332,33 @@ const MizParser = {
         text = text.replace(/\n\s*\n/g, '\n');
 
         return text || null;
+    },
+
+    /**
+     * Extract text from dictionary by key prefixes
+     * Helper function for modern DCS missions (2020-2025)
+     * @param {object} dictionary - The dictionary object
+     * @param {string[]} prefixes - Array of key prefixes to match (e.g., ['DictKey_ActionText_'])
+     * @param {string} category - Category name for the extracted items
+     * @returns {Array} Array of extracted items with category, context, and text
+     */
+    _extractFromDictionary: function(dictionary, prefixes, category) {
+        const results = [];
+        if (!dictionary) return results;
+
+        for (const [key, value] of Object.entries(dictionary)) {
+            if (prefixes.some(p => key.startsWith(p))) {
+                const text = this.cleanText(value);
+                if (text) {
+                    results.push({
+                        category: category,
+                        context: key,                // сохраняем оригинальный ключ
+                        text: text
+                    });
+                }
+            }
+        }
+        return results;
     },
 
     /**
@@ -475,6 +513,16 @@ const MizParser = {
                     }
                 }
             }
+        }
+
+        // Если ничего не нашли — берём из dictionary (modern DCS missions 2020-2025)
+        if (results.length === 0 && dictionary) {
+            const fromDict = this._extractFromDictionary(
+                dictionary,
+                ['DictKey_ActionText_'],
+                'Trigger'
+            );
+            results.push(...fromDict);
         }
 
         return results;
@@ -699,6 +747,16 @@ const MizParser = {
                     }
                 });
             }
+        }
+
+        // Если ничего не нашли — берём из dictionary (modern DCS missions 2020-2025)
+        if (results.length === 0 && dictionary) {
+            const fromDict = this._extractFromDictionary(
+                dictionary,
+                ['DictKey_subtitle_', 'DictKey_ActionRadioText_'],
+                'Radio'
+            );
+            results.push(...fromDict);
         }
 
         return results;
