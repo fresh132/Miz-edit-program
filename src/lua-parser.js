@@ -3,7 +3,7 @@
  * Parses Lua table syntax into JavaScript objects
  */
 
-const LuaParser = {
+var LuaParser = {
     /**
      * Parse a Lua table string into a JavaScript object
      * @param {string} luaString - The Lua code containing a table

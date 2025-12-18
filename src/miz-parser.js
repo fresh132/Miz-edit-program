@@ -4,15 +4,12 @@
  */
 
 // Load LuaParser in Node.js environment
-let LuaParser;
-if (typeof module !== 'undefined' && module.exports) {
-    LuaParser = require('./lua-parser.js');
-} else {
-    // In browser, LuaParser is loaded globally
-    LuaParser = window.LuaParser;
+// In browser, LuaParser is already available from lua-parser.js loaded before this script
+if (typeof module !== 'undefined' && module.exports && typeof LuaParser === 'undefined') {
+    var LuaParser = require('./lua-parser.js');
 }
 
-const MizParser = {
+var MizParser = {
     /**
      * Categories of extractable text
      */
