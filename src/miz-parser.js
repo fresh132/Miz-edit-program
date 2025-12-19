@@ -3,10 +3,15 @@
  * Handles .miz file extraction and parsing
  */
 
-// Load LuaParser in Node.js environment
-// In browser, LuaParser is already available from lua-parser.js loaded before this script
-if (typeof module !== 'undefined' && module.exports && typeof LuaParser === 'undefined') {
-    var LuaParser = require('./lua-parser.js');
+// Load dependencies in Node.js environment
+// In browser, these are already available from script tags
+if (typeof module !== 'undefined' && module.exports) {
+    if (typeof LuaParser === 'undefined') {
+        var LuaParser = require('./lua-parser.js');
+    }
+    if (typeof JSZip === 'undefined') {
+        var JSZip = require('jszip');
+    }
 }
 
 var MizParser = {
@@ -1233,6 +1238,8 @@ var MizParser = {
         }
 
         // Build translation map for briefings (same for both formats)
+        // Per Issue #36: Only add briefings if they already exist in DEFAULT dictionary
+        // Briefings stored in mission file (not dictionary) should NOT be added to dictionary
         const briefingKeyMap = {
             'sortie': 'DictKey_sortie',
             'descriptionText': 'DictKey_descriptionText',
@@ -1244,7 +1251,10 @@ var MizParser = {
         for (const [key, value] of Object.entries(mappings.briefings)) {
             if (value) {
                 const dictKey = briefingKeyMap[key] || `DictKey_${key}`;
-                translations[dictKey] = value;
+                // Only add if this key exists in the DEFAULT dictionary
+                if (defaultDict.hasOwnProperty(dictKey)) {
+                    translations[dictKey] = value;
+                }
             }
         }
 
