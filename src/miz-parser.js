@@ -1176,6 +1176,18 @@ var MizParser = {
             throw new Error('No DEFAULT dictionary found in .miz file');
         }
 
+        progressCallback(50, 'Updating mission file with briefings...');
+
+        // Issue #40: Update mission file with translated briefings
+        // Briefings (sortie, descriptionText, etc.) are stored in mission file, not dictionary
+        // We need to update them directly in the mission file
+        const missionFile = zip.file('mission');
+        if (missionFile && Object.keys(mappings.briefings).length > 0) {
+            let missionContent = await missionFile.async('string');
+            missionContent = this.updateMissionBriefings(missionContent, mappings.briefings);
+            zip.file('mission', missionContent);
+        }
+
         progressCallback(60, 'Generating new locale dictionary...');
 
         // Issue #28: Generate dictionary preserving exact DEFAULT format
@@ -1199,6 +1211,58 @@ var MizParser = {
         progressCallback(100, 'Import complete!');
 
         return newMizBlob;
+    },
+
+    /**
+     * Update mission file with translated briefings
+     * Per Issue #40: Briefings are stored directly in mission file, not as DictKey references
+     * This function updates sortie, descriptionText, etc. in the mission file
+     * @param {string} missionContent - Raw mission file content
+     * @param {object} briefings - Briefing mappings (sortie, descriptionText, etc.)
+     * @returns {string} Updated mission file content
+     */
+    updateMissionBriefings: function(missionContent, briefings) {
+        // Helper to escape Lua strings
+        const escapeLua = (str) => {
+            if (typeof str !== 'string') {
+                str = String(str);
+            }
+            return str
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\t/g, '\\t');
+        };
+
+        // Map of briefing keys to mission file property names
+        const briefingProps = {
+            'sortie': 'sortie',
+            'descriptionText': 'descriptionText',
+            'descriptionBlueTask': 'descriptionBlueTask',
+            'descriptionRedTask': 'descriptionRedTask',
+            'descriptionNeutralsTask': 'descriptionNeutralsTask'
+        };
+
+        let result = missionContent;
+
+        for (const [key, value] of Object.entries(briefings)) {
+            if (!value || !briefingProps[key]) continue;
+
+            const prop = briefingProps[key];
+
+            // Pattern to match the property assignment in Lua
+            // Matches: ["sortie"] = "value" or ["sortie"] = "value",
+            const pattern = new RegExp(
+                `(\\["${prop}"\\]\\s*=\\s*)["']([^"'\\\\]*(?:\\\\.[^"'\\\\]*)*)["']`,
+                'g'
+            );
+
+            result = result.replace(pattern, (match, prefix, oldValue) => {
+                return `${prefix}"${escapeLua(value)}"`;
+            });
+        }
+
+        return result;
     },
 
     /**
