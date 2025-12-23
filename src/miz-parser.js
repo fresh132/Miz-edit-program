@@ -348,23 +348,82 @@ var MizParser = {
 
     /**
      * Patterns to filter out system/technical messages that shouldn't be translated
-     * Per issue #42: Filter out radio text like "JAMMER COOLING 9 MINUTE" etc.
-     * These are typically system status messages, not localizable content
+     * Per issue #42, #45: Filter out system status messages, script placeholders, etc.
+     * These are typically technical messages, not localizable player-facing content
      */
     SYSTEM_MESSAGE_PATTERNS: [
-        /^JAMMER\s/i,                    // JAMMER COOLING, JAMMER OFF, etc.
-        /^\d+\s*(MINUTE|MIN|SEC|SECOND)/i, // Time announcements like "9 MINUTE"
-        /^(ON|OFF|READY|STANDBY)$/i,     // Single word status messages
-        /^[A-Z\s]+\s+\d+\s*(MIN|SEC)/i,  // Pattern like "COOLING 9 MINUTE"
-        /^(CHAFF|FLARE)\s+(LOW|OUT|EMPTY)/i, // Countermeasure status
-        /^(FUEL|BINGO)\s+(LOW|CRITICAL)/i,   // Fuel status
-        /^(LOCK|LOCKED|UNLOCK|UNLOCKED)$/i,  // Lock status
+        // JAMMER system messages
+        /^JAMMER\s/i,                           // JAMMER COOLING, JAMMER OUTPUT, JAMMER HEAT, etc.
+        /JAMMER\s*(COOLING|HEAT|OUTPUT|STOP|COOLED|OVERHEATED)/i,  // JAMMER status variations
+        /^NO JAMMER OUTPUT/i,                   // NO JAMMER OUTPUT - SA-X
+
+        // Time announcements
+        /^\d+\s*(MINUTE|MIN|SEC|SECOND)/i,      // Time announcements like "9 MINUTE"
+        /^[A-Z\s]+\s+\d+\s*(MIN|SEC|MINUTE)/i,  // Pattern like "COOLING 9 MINUTE"
+
+        // Single word/short status messages
+        /^(ON|OFF|READY|STANDBY)$/i,            // Single word status messages
+        /^(LOCK|LOCKED|UNLOCK|UNLOCKED)$/i,     // Lock status
         /^(ENGAGED|DISENGAGED|ACTIVE|INACTIVE)$/i, // System status
+
+        // Countermeasure and fuel status
+        /^(CHAFF|FLARE)\s+(LOW|OUT|EMPTY)/i,    // Countermeasure status
+        /^(FUEL|BINGO)\s+(LOW|CRITICAL)/i,      // Fuel status
+
+        // ECM/CMS system messages
+        /^ECM\s+(POWER|MASTER|XMIT)/i,          // ECM Power OFF, ECM MASTER OFF, ECM XMIT POS
+        /^CMS\s+(AUTO|RIGHT|LEFT|AFT|FWD)/i,    // CMS AUTO ON, CMS RIGHT PRESSED, etc.
+        /^WAIT\s+CMS/i,                         // WAIT CMS AFT
+        /^XMIT\s+POS/i,                         // XMIT POS 1 OR 2
+
+        // Button status messages
+        /^BUTTON\s+\d+\s+(ON|OFF)$/i,           // BUTTON 1 ON, BUTTON 5 OFF, etc.
+
+        // Script placeholder messages (mission editor internal)
+        /^INSERT\s+(ON|OFF)\s+COURSE\s+AUDIO$/i,  // INSERT ON COURSE AUDIO, INSERT OFF COURSE AUDIO
+        /^INSERT\s+ATC\s+HANDOFF/i,             // INSERT ATC HANDOFF MESSAGE
+        /^INSERT\s+(ATTACK|TASKING)\s+COMPLETE/i, // INSERT ATTACK COMPLETE AUDIO
+        /^SET\s+STARTING\s+MESSAGE$/i,          // SET STARTING MESSAGE
+        /^ADD\s+TOWER/i,                        // ADD TOWER - ENTER PATTERN MESSAGE
+        /^HOLD\s+UNTIL\s+CLEAR$/i,              // HOLD UNTIL CLEAR
+
+        // Single numbers (often system status codes)
+        /^\d+$/,                                // Just numbers: 30, 90, 100, 150, etc.
+        /^\d+\+$/,                              // Numbers with plus: 240+
+
+        // Short technical labels
+        /^(WEPS|TRIGGER|POWER\s+ON|LASER\s+OFF|MASTER\s+ARM)$/i, // Short command labels
+        /^(RESP|ASK)\s+\d+$/i,                  // RESP 2, ASK 1, ASK 3
+        /^COMM\s+\d+$/i,                        // COMM 1, COMM 2
+
+        // Heat/cooling status
+        /^HEAT\s+PENALTY/i,                     // HEAT PENALTY REMOVED
+        /^JUAMMER\s+OVERHEATED$/i,              // Typo in original: JUAMMER OVERHEATED
+
+        // Target/status labels (too short to translate)
+        /^TARGET\s+DETAILS:?$/i,                // TARGET DETAILS:
+    ],
+
+    /**
+     * Patterns for ActionRadioText menu items that shouldn't be translated
+     * Per issue #45: Filter out radio menu items like "Contact Departure", "Request Takeoff"
+     */
+    RADIO_MENU_PATTERNS: [
+        // Contact/Request menu items
+        /^Contact\s+(RAPCON|Tower|Departure|Arrival)/i,  // Contact RAPCON Arrival, Contact Tower, etc.
+        /^Request\s+(Takeoff|Taxi|Landing|Engine\s+Start)/i,  // Request Takeoff, Request taxi, etc.
+
+        // Action menu items
+        /^(Abort|Declare)\s+(Mission|emergency)/i,  // Abort Mission, Declare emergency
+        /^View\s+Briefing\s+Image$/i,           // View Briefing Image
+
+        // Points/purchase menu items (game shop menus)
+        /\d+\s+POINTS?$/i,                      // F-16 SEAD - NORTH DAMASCUS - 2 POINTS
     ],
 
     /**
      * Check if text is a system/technical message that shouldn't be translated
-     * Per issue #42: Filter out DictKey_ActionRadioText_ entries with system messages
+     * Per issue #42, #45: Filter out system messages from both ActionText and ActionRadioText
      * @param {string} text - The text to check
      * @param {string} key - The dictionary key (for context-based filtering)
      * @returns {boolean} True if this is a system message that should be filtered
@@ -372,20 +431,47 @@ var MizParser = {
     isSystemMessage: function(text, key) {
         if (!text || typeof text !== 'string') return false;
 
-        // Only filter ActionRadioText entries (these often contain system messages)
-        // DictKey_ActionText_ usually contains actual translatable content
-        if (key && key.includes('ActionRadioText')) {
-            // Check if it matches any system message pattern
+        const trimmedText = text.trim();
+
+        // Filter ActionText entries (system status, script placeholders)
+        if (key && key.includes('ActionText')) {
+            // Check against system message patterns
             for (const pattern of this.SYSTEM_MESSAGE_PATTERNS) {
-                if (pattern.test(text.trim())) {
+                if (pattern.test(trimmedText)) {
                     return true;
                 }
             }
 
-            // Also filter very short messages (likely system beeps/status)
+            // Filter very short ALL-CAPS messages (likely system labels)
+            // But keep longer instructional messages
+            if (trimmedText.length <= 20 && /^[A-Z\s\d\-\+:]+$/.test(trimmedText)) {
+                const words = trimmedText.split(/\s+/);
+                if (words.length <= 3) {
+                    return true;
+                }
+            }
+        }
+
+        // Filter ActionRadioText entries (menu items, system messages)
+        if (key && key.includes('ActionRadioText')) {
+            // Check against system message patterns
+            for (const pattern of this.SYSTEM_MESSAGE_PATTERNS) {
+                if (pattern.test(trimmedText)) {
+                    return true;
+                }
+            }
+
+            // Check against radio menu patterns
+            for (const pattern of this.RADIO_MENU_PATTERNS) {
+                if (pattern.test(trimmedText)) {
+                    return true;
+                }
+            }
+
+            // Filter very short messages (likely system beeps/status)
             // Translatable content is usually more than 3 words
-            const words = text.trim().split(/\s+/);
-            if (words.length <= 2 && /^[A-Z\s\d]+$/.test(text.trim())) {
+            const words = trimmedText.split(/\s+/);
+            if (words.length <= 2 && /^[A-Z\s\d]+$/.test(trimmedText)) {
                 return true;
             }
         }
