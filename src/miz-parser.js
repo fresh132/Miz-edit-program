@@ -347,8 +347,56 @@ var MizParser = {
     },
 
     /**
+     * Patterns to filter out system/technical messages that shouldn't be translated
+     * Per issue #42: Filter out radio text like "JAMMER COOLING 9 MINUTE" etc.
+     * These are typically system status messages, not localizable content
+     */
+    SYSTEM_MESSAGE_PATTERNS: [
+        /^JAMMER\s/i,                    // JAMMER COOLING, JAMMER OFF, etc.
+        /^\d+\s*(MINUTE|MIN|SEC|SECOND)/i, // Time announcements like "9 MINUTE"
+        /^(ON|OFF|READY|STANDBY)$/i,     // Single word status messages
+        /^[A-Z\s]+\s+\d+\s*(MIN|SEC)/i,  // Pattern like "COOLING 9 MINUTE"
+        /^(CHAFF|FLARE)\s+(LOW|OUT|EMPTY)/i, // Countermeasure status
+        /^(FUEL|BINGO)\s+(LOW|CRITICAL)/i,   // Fuel status
+        /^(LOCK|LOCKED|UNLOCK|UNLOCKED)$/i,  // Lock status
+        /^(ENGAGED|DISENGAGED|ACTIVE|INACTIVE)$/i, // System status
+    ],
+
+    /**
+     * Check if text is a system/technical message that shouldn't be translated
+     * Per issue #42: Filter out DictKey_ActionRadioText_ entries with system messages
+     * @param {string} text - The text to check
+     * @param {string} key - The dictionary key (for context-based filtering)
+     * @returns {boolean} True if this is a system message that should be filtered
+     */
+    isSystemMessage: function(text, key) {
+        if (!text || typeof text !== 'string') return false;
+
+        // Only filter ActionRadioText entries (these often contain system messages)
+        // DictKey_ActionText_ usually contains actual translatable content
+        if (key && key.includes('ActionRadioText')) {
+            // Check if it matches any system message pattern
+            for (const pattern of this.SYSTEM_MESSAGE_PATTERNS) {
+                if (pattern.test(text.trim())) {
+                    return true;
+                }
+            }
+
+            // Also filter very short messages (likely system beeps/status)
+            // Translatable content is usually more than 3 words
+            const words = text.trim().split(/\s+/);
+            if (words.length <= 2 && /^[A-Z\s\d]+$/.test(text.trim())) {
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    /**
      * Extract text from dictionary by key prefixes
      * Helper function for modern DCS missions (2020-2025)
+     * Per issue #42: Filters out system messages from ActionRadioText entries
      * @param {object} dictionary - The dictionary object
      * @param {string[]} prefixes - Array of key prefixes to match (e.g., ['DictKey_ActionText_'])
      * @param {string} category - Category name for the extracted items
@@ -362,6 +410,11 @@ var MizParser = {
             if (prefixes.some(p => key.startsWith(p))) {
                 const text = this.cleanText(value);
                 if (text) {
+                    // Per issue #42: Filter out system messages
+                    if (this.isSystemMessage(text, key)) {
+                        continue;
+                    }
+
                     results.push({
                         category: category,
                         context: key,                // сохраняем оригинальный ключ
@@ -865,30 +918,53 @@ var MizParser = {
         if (extractionResult.extracted.briefings && extractionResult.extracted.briefings.length > 0) {
             const briefingLines = ['БРИФИНГ: / BRIEFING:', ''];
             for (const item of extractionResult.extracted.briefings) {
-                const prefix = this.getCleanPrefix(item.context, 'Briefing');
-                briefingLines.push(`${prefix}: ${item.text}`);
+                // Per issue #42: Use [BRIEFING] label format with DictKey preserved for import
+                const dictKey = item.context?.startsWith('DictKey_') ? item.context : null;
+                const label = this.getCleanPrefix(item.context, 'Briefing');
+                if (dictKey) {
+                    // Keep DictKey for import compatibility
+                    briefingLines.push(`${dictKey}: ${item.text}`);
+                } else {
+                    briefingLines.push(`${label}: ${item.text}`);
+                }
             }
             sections.push(briefingLines.join('\n'));
         }
 
         // TRIGGERS SECTION
+        // Per issue #42: Display as [TRIGGER] label instead of raw DictKey
         if (extractionResult.extracted.triggers && extractionResult.extracted.triggers.length > 0) {
             const triggerLines = ['ТРИГГЕРЫ: / TRIGGERS:', ''];
+            let triggerIndex = 1;
             for (const item of extractionResult.extracted.triggers) {
-                // Include the original DictKey in the prefix to preserve key mapping during import
-                const prefix = item.context || `Trigger_${triggerLines.length - 2}`;
-                triggerLines.push(`${prefix}: ${item.text}`);
+                // Preserve DictKey for import, but show cleaner format
+                const dictKey = item.context?.startsWith('DictKey_') ? item.context : null;
+                if (dictKey) {
+                    // Keep DictKey for import compatibility, but now they're filtered
+                    triggerLines.push(`${dictKey}: ${item.text}`);
+                } else {
+                    triggerLines.push(`[TRIGGER_${triggerIndex}]: ${item.text}`);
+                }
+                triggerIndex++;
             }
             sections.push(triggerLines.join('\n'));
         }
 
         // RADIO MESSAGES SECTION
+        // Per issue #42: Display as [RADIO] label instead of raw DictKey
         if (extractionResult.extracted.radio && extractionResult.extracted.radio.length > 0) {
             const radioLines = ['РАДИОСООБЩЕНИЯ: / RADIO MESSAGES:', ''];
+            let radioIndex = 1;
             for (const item of extractionResult.extracted.radio) {
-                // Include the original DictKey in the prefix to preserve key mapping during import
-                const prefix = item.context || `Radio_${radioLines.length - 2}`;
-                radioLines.push(`${prefix}: ${item.text}`);
+                // Preserve DictKey for import, but show cleaner format
+                const dictKey = item.context?.startsWith('DictKey_') ? item.context : null;
+                if (dictKey) {
+                    // Keep DictKey for import compatibility, but now they're filtered
+                    radioLines.push(`${dictKey}: ${item.text}`);
+                } else {
+                    radioLines.push(`[RADIO_${radioIndex}]: ${item.text}`);
+                }
+                radioIndex++;
             }
             sections.push(radioLines.join('\n'));
         }
@@ -898,7 +974,7 @@ var MizParser = {
             const taskLines = ['ЗАДАЧИ: / TASKS:', ''];
             let taskIndex = 1;
             for (const item of extractionResult.extracted.tasks) {
-                taskLines.push(`Task_${taskIndex}: ${item.text}`);
+                taskLines.push(`[TASK_${taskIndex}]: ${item.text}`);
                 taskIndex++;
             }
             sections.push(taskLines.join('\n'));
@@ -908,7 +984,7 @@ var MizParser = {
             const unitLines = ['ПОДРАЗДЕЛЕНИЯ: / UNITS:', ''];
             let unitIndex = 1;
             for (const item of extractionResult.extracted.units) {
-                unitLines.push(`Unit_${unitIndex}: ${item.text}`);
+                unitLines.push(`[UNIT_${unitIndex}]: ${item.text}`);
                 unitIndex++;
             }
             sections.push(unitLines.join('\n'));
@@ -918,7 +994,7 @@ var MizParser = {
             const waypointLines = ['ПУТЕВЫЕ ТОЧКИ: / WAYPOINTS:', ''];
             let waypointIndex = 1;
             for (const item of extractionResult.extracted.waypoints) {
-                waypointLines.push(`Waypoint_${waypointIndex}: ${item.text}`);
+                waypointLines.push(`[WAYPOINT_${waypointIndex}]: ${item.text}`);
                 waypointIndex++;
             }
             sections.push(waypointLines.join('\n'));
@@ -1041,6 +1117,7 @@ var MizParser = {
             }
 
             // Legacy format handling (old Trigger_1, Radio_1 format)
+            // Also handles new [TRIGGER_1], [RADIO_1] format per issue #42
             // Map briefings
             if (prefix.startsWith('Briefing_Mission')) {
                 mappings.briefings.sortie = cleanText;
@@ -1053,20 +1130,22 @@ var MizParser = {
             } else if (prefix.startsWith('Briefing_Neutral')) {
                 mappings.briefings.descriptionNeutralsTask = cleanText;
             }
-            // Map triggers (old format)
-            else if (prefix.startsWith('Trigger_Message_') || prefix.startsWith('Trigger_')) {
+            // Map triggers (old format and new [TRIGGER_X] format per issue #42)
+            else if (prefix.startsWith('Trigger_Message_') || prefix.startsWith('Trigger_') ||
+                     prefix.startsWith('[TRIGGER_') || prefix === '[TRIGGER]') {
                 mappings.triggers.push(cleanText);
             }
-            // Map radio (old format)
-            else if (prefix.startsWith('Radio_Message_') || prefix.startsWith('Radio_')) {
+            // Map radio (old format and new [RADIO_X] format per issue #42)
+            else if (prefix.startsWith('Radio_Message_') || prefix.startsWith('Radio_') ||
+                     prefix.startsWith('[RADIO_') || prefix === '[RADIO]') {
                 mappings.radio.push(cleanText);
             }
-            // Map optional categories
-            else if (prefix.startsWith('Task_')) {
+            // Map optional categories (with new [LABEL] format per issue #42)
+            else if (prefix.startsWith('Task_') || prefix.startsWith('[TASK_') || prefix === '[TASK]') {
                 mappings.tasks.push(cleanText);
-            } else if (prefix.startsWith('Unit_')) {
+            } else if (prefix.startsWith('Unit_') || prefix.startsWith('[UNIT_') || prefix === '[UNIT]') {
                 mappings.units.push(cleanText);
-            } else if (prefix.startsWith('Waypoint_')) {
+            } else if (prefix.startsWith('Waypoint_') || prefix.startsWith('[WAYPOINT_') || prefix === '[WAYPOINT]') {
                 mappings.waypoints.push(cleanText);
             }
         }
