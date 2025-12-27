@@ -10,19 +10,28 @@
 <body>
     <div class="container py-4">
         <header class="mb-4">
-            <h1 class="text-center">Miz Editor</h1>
-            <p class="text-center text-muted">Extract and import localizable text for DCS World .miz files</p>
+            <div class="d-flex justify-content-end mb-2">
+                <div class="language-selector-wrapper">
+                    <label for="language-selector" class="me-2 text-muted" data-i18n="language.selector">Language</label>
+                    <select id="language-selector" class="form-select form-select-sm" style="width: auto; display: inline-block;">
+                        <option value="en">English</option>
+                        <option value="ru">Русский</option>
+                    </select>
+                </div>
+            </div>
+            <h1 class="text-center" data-i18n="app.title">Miz Editor</h1>
+            <p class="text-center text-muted" data-i18n="app.subtitle">Extract and import localizable text for DCS World .miz files</p>
         </header>
 
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs mb-4" id="modeTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="export-tab" data-bs-toggle="tab" data-bs-target="#export" type="button" role="tab">
+                <button class="nav-link active" id="export-tab" data-bs-toggle="tab" data-bs-target="#export" type="button" role="tab" data-i18n="tabs.export">
                     Export Text
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
+                <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab" data-i18n="tabs.import">
                     Import Translation
                 </button>
             </li>
@@ -35,21 +44,21 @@
         <!-- File Upload Section -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">1. Upload .miz File</h5>
+                <h5 class="mb-0" data-i18n="export.upload.title">1. Upload .miz File</h5>
             </div>
             <div class="card-body">
                 <div id="drop-zone" class="drop-zone text-center p-5 border border-2 border-dashed rounded">
                     <i class="bi bi-cloud-upload fs-1 text-muted"></i>
-                    <p class="mb-2">Drag and drop a .miz file here</p>
-                    <p class="text-muted mb-3">or</p>
+                    <p class="mb-2" data-i18n="export.upload.dragDrop">Drag and drop a .miz file here</p>
+                    <p class="text-muted mb-3" data-i18n="export.upload.or">or</p>
                     <input type="file" id="file-input" accept=".miz" class="d-none">
-                    <button id="browse-btn" class="btn btn-primary">Browse Files</button>
+                    <button id="browse-btn" class="btn btn-primary" data-i18n="export.upload.browse">Browse Files</button>
                 </div>
                 <div id="file-info" class="mt-3 d-none">
                     <div class="alert alert-success">
-                        <strong>File loaded:</strong> <span id="file-name"></span>
+                        <strong data-i18n="export.upload.fileLoaded">File loaded:</strong> <span id="file-name"></span>
                         <span class="float-end">
-                            <button id="clear-file-btn" class="btn btn-sm btn-outline-danger">Clear</button>
+                            <button id="clear-file-btn" class="btn btn-sm btn-outline-danger" data-i18n="export.upload.clear">Clear</button>
                         </span>
                     </div>
                 </div>
@@ -59,52 +68,52 @@
         <!-- Mode Selection Section -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">2. Select Extraction Mode</h5>
+                <h5 class="mb-0" data-i18n="export.mode.title">2. Select Extraction Mode</h5>
             </div>
             <div class="card-body">
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="radio" name="mode" id="mode-auto" value="auto" checked>
                     <label class="form-check-label" for="mode-auto">
-                        <strong>Automatic Mode</strong> - Extract all localizable text automatically
+                        <strong data-i18n="export.mode.auto">Automatic Mode</strong> - <span data-i18n="export.mode.autoDesc">Extract all localizable text automatically</span>
                     </label>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="mode" id="mode-manual" value="manual">
                     <label class="form-check-label" for="mode-manual">
-                        <strong>Manual Mode</strong> - Select specific categories to extract
+                        <strong data-i18n="export.mode.manual">Manual Mode</strong> - <span data-i18n="export.mode.manualDesc">Select specific categories to extract</span>
                     </label>
                 </div>
 
                 <!-- Manual Mode Categories -->
                 <div id="manual-categories" class="mt-3 ms-4 d-none">
-                    <h6>Select categories to extract:</h6>
+                    <h6 data-i18n="export.mode.selectCategories">Select categories to extract:</h6>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-briefings" value="briefings" checked>
-                                <label class="form-check-label" for="cat-briefings">Mission Briefings</label>
+                                <label class="form-check-label" for="cat-briefings" data-i18n="export.mode.briefings">Mission Briefings</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-tasks" value="tasks" checked>
-                                <label class="form-check-label" for="cat-tasks">Task Descriptions</label>
+                                <label class="form-check-label" for="cat-tasks" data-i18n="export.mode.tasks">Task Descriptions</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-triggers" value="triggers" checked>
-                                <label class="form-check-label" for="cat-triggers">Trigger Messages</label>
+                                <label class="form-check-label" for="cat-triggers" data-i18n="export.mode.triggers">Trigger Messages</label>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-units" value="units" checked>
-                                <label class="form-check-label" for="cat-units">Unit Names</label>
+                                <label class="form-check-label" for="cat-units" data-i18n="export.mode.units">Unit Names</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-waypoints" value="waypoints" checked>
-                                <label class="form-check-label" for="cat-waypoints">Waypoints</label>
+                                <label class="form-check-label" for="cat-waypoints" data-i18n="export.mode.waypoints">Waypoints</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input category-checkbox" type="checkbox" id="cat-radio" value="radio" checked>
-                                <label class="form-check-label" for="cat-radio">Radio Messages</label>
+                                <label class="form-check-label" for="cat-radio" data-i18n="export.mode.radio">Radio Messages</label>
                             </div>
                         </div>
                     </div>
@@ -115,18 +124,18 @@
         <!-- Locale Selection -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">3. Locale Preference</h5>
+                <h5 class="mb-0" data-i18n="export.locale.title">3. Locale Preference</h5>
             </div>
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-6">
                         <select id="locale-select" class="form-select">
-                            <option value="DEFAULT" selected>DEFAULT (Primary)</option>
-                            <option value="RU">Russian (RU)</option>
+                            <option value="DEFAULT" selected data-i18n="export.locale.default">DEFAULT (Primary)</option>
+                            <option value="RU" data-i18n="export.locale.russian">Russian (RU)</option>
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <small class="text-muted">If selected locale is unavailable, DEFAULT will be used</small>
+                        <small class="text-muted" data-i18n="export.locale.hint">If selected locale is unavailable, DEFAULT will be used</small>
                     </div>
                 </div>
             </div>
@@ -135,16 +144,16 @@
         <!-- Output Format -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">4. Output Format</h5>
+                <h5 class="mb-0" data-i18n="export.format.title">4. Output Format</h5>
             </div>
             <div class="card-body">
                 <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="output-format" id="format-txt" value="txt" checked>
-                    <label class="form-check-label" for="format-txt">Plain Text (.txt)</label>
+                    <label class="form-check-label" for="format-txt" data-i18n="export.format.txt">Plain Text (.txt)</label>
                 </div>
                 <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="output-format" id="format-json" value="json">
-                    <label class="form-check-label" for="format-json">JSON (.json)</label>
+                    <label class="form-check-label" for="format-json" data-i18n="export.format.json">JSON (.json)</label>
                 </div>
             </div>
         </div>
@@ -152,7 +161,7 @@
         <!-- Process Button -->
         <div class="text-center mb-4">
             <button id="process-btn" class="btn btn-success btn-lg" disabled>
-                <span id="process-text">Process File</span>
+                <span id="process-text" data-i18n="export.process.button">Process File</span>
                 <span id="process-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
             </button>
         </div>
@@ -163,17 +172,17 @@
                 <div class="progress">
                     <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                 </div>
-                <p id="progress-text" class="text-center mt-2 mb-0">Processing...</p>
+                <p id="progress-text" class="text-center mt-2 mb-0" data-i18n="export.progress.processing">Processing...</p>
             </div>
         </div>
 
         <!-- Results Section -->
         <div id="results-section" class="card mb-4 d-none">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Extracted Text Preview</h5>
+                <h5 class="mb-0" data-i18n="export.results.title">Extracted Text Preview</h5>
                 <div>
                     <span id="extraction-stats" class="badge bg-info me-2"></span>
-                    <button id="download-btn" class="btn btn-primary btn-sm">
+                    <button id="download-btn" class="btn btn-primary btn-sm" data-i18n="export.results.download">
                         Download
                     </button>
                 </div>
@@ -185,7 +194,7 @@
 
         <!-- Error Section -->
         <div id="error-section" class="alert alert-danger d-none" role="alert">
-            <strong>Error:</strong> <span id="error-message"></span>
+            <strong data-i18n="common.error">Error:</strong> <span id="error-message"></span>
         </div>
 
             </div>
@@ -196,14 +205,14 @@
 
                 <!-- Import Instructions -->
                 <div class="alert alert-info mb-4">
-                    <h6 class="alert-heading">Import Translation</h6>
-                    <p class="mb-0">Upload an original .miz file and a translated .txt file to create a new locale in the mission.</p>
+                    <h6 class="alert-heading" data-i18n="import.instructions.title">Import Translation</h6>
+                    <p class="mb-0" data-i18n="import.instructions.description">Upload an original .miz file and a translated .txt file to create a new locale in the mission.</p>
                 </div>
 
                 <!-- Original MIZ Upload -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">1. Upload Original .miz File</h5>
+                        <h5 class="mb-0" data-i18n="import.uploadMiz.title">1. Upload Original .miz File</h5>
                     </div>
                     <div class="card-body">
                         <input type="file" id="import-miz-input" accept=".miz" class="form-control">
@@ -216,7 +225,7 @@
                 <!-- Translated Text Upload -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">2. Upload Translated .txt File</h5>
+                        <h5 class="mb-0" data-i18n="import.uploadTxt.title">2. Upload Translated .txt File</h5>
                     </div>
                     <div class="card-body">
                         <input type="file" id="import-txt-input" accept=".txt" class="form-control">
@@ -229,27 +238,27 @@
                 <!-- Target Locale Selection -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">3. Select Target Locale</h5>
+                        <h5 class="mb-0" data-i18n="import.targetLocale.title">3. Select Target Locale</h5>
                     </div>
                     <div class="card-body">
                         <select id="import-locale-select" class="form-select">
-                            <option value="RU" selected>Russian (RU)</option>
-                            <option value="CN">Chinese (CN)</option>
-                            <option value="CS">Czech (CS)</option>
-                            <option value="DE">German (DE)</option>
-                            <option value="ES">Spanish (ES)</option>
-                            <option value="FR">French (FR)</option>
-                            <option value="KO">Korean (KO)</option>
-                            <option value="JP">Japanese (JP)</option>
+                            <option value="RU" selected data-i18n="import.targetLocale.russian">Russian (RU)</option>
+                            <option value="CN" data-i18n="import.targetLocale.chinese">Chinese (CN)</option>
+                            <option value="CS" data-i18n="import.targetLocale.czech">Czech (CS)</option>
+                            <option value="DE" data-i18n="import.targetLocale.german">German (DE)</option>
+                            <option value="ES" data-i18n="import.targetLocale.spanish">Spanish (ES)</option>
+                            <option value="FR" data-i18n="import.targetLocale.french">French (FR)</option>
+                            <option value="KO" data-i18n="import.targetLocale.korean">Korean (KO)</option>
+                            <option value="JP" data-i18n="import.targetLocale.japanese">Japanese (JP)</option>
                         </select>
-                        <small class="text-muted">This locale will be created/updated in the .miz file</small>
+                        <small class="text-muted" data-i18n="import.targetLocale.hint">This locale will be created/updated in the .miz file</small>
                     </div>
                 </div>
 
                 <!-- Import Button -->
                 <div class="text-center mb-4">
                     <button id="import-btn" class="btn btn-success btn-lg" disabled>
-                        <span id="import-text">Import Translation</span>
+                        <span id="import-text" data-i18n="import.process.button">Import Translation</span>
                         <span id="import-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
                     </button>
                 </div>
@@ -260,18 +269,18 @@
                         <div class="progress">
                             <div id="import-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                         </div>
-                        <p id="import-progress-text" class="text-center mt-2 mb-0">Processing...</p>
+                        <p id="import-progress-text" class="text-center mt-2 mb-0" data-i18n="import.progress.starting">Processing...</p>
                     </div>
                 </div>
 
                 <!-- Import Success -->
                 <div id="import-success-section" class="card mb-4 d-none">
                     <div class="card-body">
-                        <div class="alert alert-success mb-3">
+                        <div class="alert alert-success mb-3" data-i18n="import.success.message">
                             <strong>Success!</strong> Translation imported successfully. Your new .miz file is ready to download.
                         </div>
                         <div class="text-center">
-                            <button id="download-imported-btn" class="btn btn-primary">
+                            <button id="download-imported-btn" class="btn btn-primary" data-i18n="import.success.download">
                                 Download Updated .miz File
                             </button>
                         </div>
@@ -280,7 +289,7 @@
 
                 <!-- Import Error -->
                 <div id="import-error-section" class="alert alert-danger d-none" role="alert">
-                    <strong>Error:</strong> <span id="import-error-message"></span>
+                    <strong data-i18n="common.error">Error:</strong> <span id="import-error-message"></span>
                 </div>
 
             </div>
@@ -290,7 +299,7 @@
         <!-- End Tab Content -->
 
         <footer class="text-center text-muted mt-4">
-            <p>Miz Editor v1.0.0 | For DCS World mission files</p>
+            <p data-i18n="app.version">Miz Editor v1.0.0 | For DCS World mission files</p>
         </footer>
     </div>
 
@@ -300,6 +309,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- i18n Module -->
+    <script src="src/i18n.js"></script>
     <!-- Main Application Script -->
     <script src="src/lua-parser.js"></script>
     <script src="src/miz-parser.js"></script>

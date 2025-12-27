@@ -59,11 +59,17 @@
         importSuccessSection: document.getElementById('import-success-section'),
         downloadImportedBtn: document.getElementById('download-imported-btn'),
         importErrorSection: document.getElementById('import-error-section'),
-        importErrorMessage: document.getElementById('import-error-message')
+        importErrorMessage: document.getElementById('import-error-message'),
+        // Language selector
+        languageSelector: document.getElementById('language-selector')
     };
 
     // Initialize the application
-    function init() {
+    async function init() {
+        // Initialize i18n first
+        if (window.i18n) {
+            await window.i18n.init();
+        }
         setupEventListeners();
         checkElectronEnvironment();
     }
@@ -96,6 +102,19 @@
         elements.importTxtInput.addEventListener('change', handleImportTxtSelect);
         elements.importBtn.addEventListener('click', performImport);
         elements.downloadImportedBtn.addEventListener('click', downloadImportedMiz);
+
+        // Language selector handler
+        if (elements.languageSelector) {
+            elements.languageSelector.addEventListener('change', handleLanguageChange);
+        }
+    }
+
+    // Handle language change
+    function handleLanguageChange(event) {
+        const newLanguage = event.target.value;
+        if (window.i18n) {
+            window.i18n.setLanguage(newLanguage, true);
+        }
     }
 
     // Check if running in Electron
@@ -371,11 +390,12 @@
     // Processing state
     function setProcessing(isProcessing) {
         elements.processBtn.disabled = isProcessing || !currentFile;
+        const t = window.i18n ? window.i18n.t : (key) => key;
         if (isProcessing) {
-            elements.processText.textContent = 'Processing...';
+            elements.processText.textContent = t('export.process.processing');
             elements.processSpinner.classList.remove('d-none');
         } else {
-            elements.processText.textContent = 'Process File';
+            elements.processText.textContent = t('export.process.button');
             elements.processSpinner.classList.add('d-none');
         }
     }
@@ -533,11 +553,12 @@
     // Import processing state
     function setImportProcessing(isProcessing) {
         elements.importBtn.disabled = isProcessing || !(importMizFile && importTxtFile);
+        const t = window.i18n ? window.i18n.t : (key) => key;
         if (isProcessing) {
-            elements.importText.textContent = 'Importing...';
+            elements.importText.textContent = t('import.process.importing');
             elements.importSpinner.classList.remove('d-none');
         } else {
-            elements.importText.textContent = 'Import Translation';
+            elements.importText.textContent = t('import.process.button');
             elements.importSpinner.classList.add('d-none');
         }
     }

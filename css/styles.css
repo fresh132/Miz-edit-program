@@ -113,3 +113,17 @@ footer {
         transform: translateY(0);
     }
 }
+
+/* Language Selector */
+.language-selector-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.language-selector-wrapper label {
+    font-size: 0.875rem;
+}
+
+#language-selector {
+    min-width: 120px;
+}

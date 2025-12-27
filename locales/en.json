@@ -1,0 +1,127 @@
+{
+  "app": {
+    "title": "Miz Editor",
+    "subtitle": "Extract and import localizable text for DCS World .miz files",
+    "version": "Miz Editor v1.0.0 | For DCS World mission files"
+  },
+  "tabs": {
+    "export": "Export Text",
+    "import": "Import Translation"
+  },
+  "export": {
+    "upload": {
+      "title": "1. Upload .miz File",
+      "dragDrop": "Drag and drop a .miz file here",
+      "or": "or",
+      "browse": "Browse Files",
+      "fileLoaded": "File loaded:",
+      "clear": "Clear"
+    },
+    "mode": {
+      "title": "2. Select Extraction Mode",
+      "auto": "Automatic Mode",
+      "autoDesc": "Extract all localizable text automatically",
+      "manual": "Manual Mode",
+      "manualDesc": "Select specific categories to extract",
+      "selectCategories": "Select categories to extract:",
+      "briefings": "Mission Briefings",
+      "tasks": "Task Descriptions",
+      "triggers": "Trigger Messages",
+      "units": "Unit Names",
+      "waypoints": "Waypoints",
+      "radio": "Radio Messages"
+    },
+    "locale": {
+      "title": "3. Locale Preference",
+      "default": "DEFAULT (Primary)",
+      "russian": "Russian (RU)",
+      "hint": "If selected locale is unavailable, DEFAULT will be used"
+    },
+    "format": {
+      "title": "4. Output Format",
+      "txt": "Plain Text (.txt)",
+      "json": "JSON (.json)"
+    },
+    "process": {
+      "button": "Process File",
+      "processing": "Processing..."
+    },
+    "progress": {
+      "starting": "Starting...",
+      "processing": "Processing...",
+      "extracting": "Extracting text...",
+      "formatting": "Formatting output...",
+      "complete": "Complete!"
+    },
+    "results": {
+      "title": "Extracted Text Preview",
+      "download": "Download",
+      "strings": "strings",
+      "unique": "unique",
+      "errors": "Errors:",
+      "warnings": "Warnings:",
+      "completeExtraction": "Complete extraction (briefings, triggers, and radio messages)"
+    },
+    "errors": {
+      "selectFile": "Please select a .miz file first",
+      "invalidFile": "Please select a valid .miz file",
+      "processing": "An error occurred while processing the file"
+    }
+  },
+  "import": {
+    "instructions": {
+      "title": "Import Translation",
+      "description": "Upload an original .miz file and a translated .txt file to create a new locale in the mission."
+    },
+    "uploadMiz": {
+      "title": "1. Upload Original .miz File"
+    },
+    "uploadTxt": {
+      "title": "2. Upload Translated .txt File"
+    },
+    "targetLocale": {
+      "title": "3. Select Target Locale",
+      "hint": "This locale will be created/updated in the .miz file",
+      "russian": "Russian (RU)",
+      "chinese": "Chinese (CN)",
+      "czech": "Czech (CS)",
+      "german": "German (DE)",
+      "spanish": "Spanish (ES)",
+      "french": "French (FR)",
+      "korean": "Korean (KO)",
+      "japanese": "Japanese (JP)"
+    },
+    "process": {
+      "button": "Import Translation",
+      "importing": "Importing..."
+    },
+    "progress": {
+      "starting": "Starting...",
+      "textLoaded": "Text file loaded...",
+      "validating": "Validating .miz file...",
+      "complete": "Import complete!"
+    },
+    "success": {
+      "message": "Success! Translation imported successfully. Your new .miz file is ready to download.",
+      "download": "Download Updated .miz File"
+    },
+    "errors": {
+      "selectBoth": "Please select both .miz and .txt files",
+      "invalidMiz": "Please select a valid .miz file",
+      "invalidTxt": "Please select a valid .txt file",
+      "importing": "An error occurred during import"
+    }
+  },
+  "language": {
+    "selector": "Language",
+    "en": "English",
+    "ru": "Russian",
+    "reloadTitle": "Language Changed",
+    "reloadMessage": "The application needs to be reloaded for the language change to take effect.",
+    "reloadNow": "Reload Now",
+    "reloadLater": "Later"
+  },
+  "common": {
+    "error": "Error:"
+  }
+}
