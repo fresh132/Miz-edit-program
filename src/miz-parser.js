@@ -1431,15 +1431,16 @@ var MizParser = {
     },
 
     /**
-     * Generate dictionary preserving exact DEFAULT format
-     * Per Issue #28: Preserve quotes, line breaks, order, spacing from original
-     * @param {string} defaultDictRaw - Raw DEFAULT dictionary content
+     * Generate dictionary by copying DEFAULT and replacing values by keys
+     * Per Issue #48: Simplified import scheme - copy original file, modify only by keys
+     * No dictionary parsing/rebuilding - just find keys and replace their values
+     * @param {string} defaultDictRaw - Raw DEFAULT dictionary content (copied as-is)
      * @param {object} mappings - Import mappings with translated strings
      * @param {string} targetLocale - Target locale
-     * @returns {string} New dictionary with preserved format
+     * @returns {string} New dictionary with replaced values
      */
     generateDictionaryPreservingFormat: function(defaultDictRaw, mappings, targetLocale) {
-        // Helper to escape Lua strings (but preserve the original escape style)
+        // Helper to escape Lua strings
         const escapeLua = (str) => {
             if (typeof str !== 'string') {
                 str = String(str);
@@ -1451,42 +1452,16 @@ var MizParser = {
                 .replace(/\t/g, '\\t');
         };
 
-        // Parse the DEFAULT dictionary to get keys
-        const defaultDict = LuaParser.parse(defaultDictRaw);
-
-        // Create translation mapping from extracted format to DictKey format
+        // Per Issue #48: No dictionary rebuilding - use keyMappings directly
+        // keyMappings contains exact DictKey-to-text mappings from the imported file
         const translations = {};
 
-        // Prefer exact key mappings from new format (Issue #30 fix)
+        // Use exact key mappings from import (DictKey_XXX: translated text)
         if (mappings.keyMappings && Object.keys(mappings.keyMappings).length > 0) {
-            // Use exact DictKey-to-text mappings (new format)
             Object.assign(translations, mappings.keyMappings);
-        } else {
-            // Fallback to old logic for legacy format (old Trigger_1, Radio_1 format)
-            // Build translation map for triggers
-            const existingTriggerKeys = Object.keys(defaultDict).filter(k =>
-                k.includes('ActionText') || k.includes('Trigger')
-            ).sort();
-
-            mappings.triggers.forEach((text, index) => {
-                const dictKey = existingTriggerKeys[index] || `DictKey_Trigger_${index + 1}`;
-                translations[dictKey] = text;
-            });
-
-            // Build translation map for radio
-            const existingRadioKeys = Object.keys(defaultDict).filter(k =>
-                k.includes('subtitle') || k.includes('Radio') || k.includes('ActionRadioText')
-            ).sort();
-
-            mappings.radio.forEach((text, index) => {
-                const dictKey = existingRadioKeys[index] || `DictKey_Radio_${index + 1}`;
-                translations[dictKey] = text;
-            });
         }
 
-        // Build translation map for briefings (same for both formats)
-        // Per Issue #36: Only add briefings if they already exist in DEFAULT dictionary
-        // Briefings stored in mission file (not dictionary) should NOT be added to dictionary
+        // Add briefing translations if keys are found in raw content
         const briefingKeyMap = {
             'sortie': 'DictKey_sortie',
             'descriptionText': 'DictKey_descriptionText',
@@ -1498,49 +1473,30 @@ var MizParser = {
         for (const [key, value] of Object.entries(mappings.briefings)) {
             if (value) {
                 const dictKey = briefingKeyMap[key] || `DictKey_${key}`;
-                // Only add if this key exists in the DEFAULT dictionary
-                if (defaultDict.hasOwnProperty(dictKey)) {
+                // Only add if this key appears in the raw dictionary content
+                if (defaultDictRaw.includes(`["${dictKey}"]`) || defaultDictRaw.includes(`['${dictKey}']`)) {
                     translations[dictKey] = value;
                 }
             }
         }
 
-        // Now process the raw dictionary line by line, preserving format
+        // Per Issue #48: Copy original file content and modify only by keys
+        // Find each key in the raw content and replace its value (what's in quotes)
         let result = defaultDictRaw;
 
         // Pattern to match dictionary entries: ["key"] = "value"
-        // This regex captures: key name, and the entire value (with escaped chars)
-        // Supports multi-line values with \n escape sequences
+        // Captures: prefix (["key"] = ), key name, and value in quotes
         const entryPattern = /(\[["']([^"']+)["']\]\s*=\s*)["']((?:[^"'\\]|\\.)*)["']/g;
 
-        // Replace values for translatable keys
+        // Replace values only for keys that have translations
         result = result.replace(entryPattern, (match, prefix, key, value) => {
             if (translations[key]) {
-                // Replace with translated value, preserving the prefix format
+                // Found the key - delete what's in quotes, insert changed text
                 return `${prefix}"${escapeLua(translations[key])}"`;
             }
             // Keep original entry unchanged
             return match;
         });
-
-        // Now add any new keys that weren't in the original DEFAULT dictionary
-        // These go before the closing brace
-        const newKeys = Object.keys(translations).filter(k => !defaultDict.hasOwnProperty(k));
-
-        if (newKeys.length > 0) {
-            const newEntries = [];
-            for (const key of newKeys) {
-                newEntries.push(`    ["${key}"] = "${escapeLua(translations[key])}",`);
-            }
-
-            // Insert before closing brace
-            const closingBraceIndex = result.lastIndexOf('}');
-            if (closingBraceIndex !== -1) {
-                result = result.slice(0, closingBraceIndex) +
-                         newEntries.join('\n') + '\n' +
-                         result.slice(closingBraceIndex);
-            }
-        }
 
         return result;
     },
