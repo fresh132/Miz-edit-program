@@ -178,16 +178,27 @@ var MizParser = {
         };
 
         // Select the dictionary to use
-        let dictionary = parsedData.dictionaries[preferredLocale];
-        if (!dictionary && preferredLocale !== 'DEFAULT') {
-            dictionary = parsedData.dictionaries['DEFAULT'];
+        // Issue #50: Merge DEFAULT dictionary with selected locale dictionary
+        // This ensures ALL entries are extracted, using selected locale values when available
+        // and falling back to DEFAULT for missing keys
+        let dictionary = {};
+        const defaultDict = parsedData.dictionaries['DEFAULT'] || {};
+        const localeDict = parsedData.dictionaries[preferredLocale] || {};
+
+        // Start with all entries from DEFAULT
+        Object.assign(dictionary, defaultDict);
+
+        // Override with entries from selected locale (if not DEFAULT)
+        if (preferredLocale !== 'DEFAULT' && Object.keys(localeDict).length > 0) {
+            Object.assign(dictionary, localeDict);
+            result.locale = preferredLocale;
+        } else if (Object.keys(defaultDict).length > 0) {
             result.locale = 'DEFAULT';
-        }
-        if (!dictionary) {
-            // Use first available dictionary
+        } else {
+            // Use first available dictionary as fallback
             const firstLocale = parsedData.availableLocales[0];
             if (firstLocale) {
-                dictionary = parsedData.dictionaries[firstLocale];
+                dictionary = parsedData.dictionaries[firstLocale] || {};
                 result.locale = firstLocale;
             }
         }
