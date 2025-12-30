@@ -31,9 +31,6 @@ test.describe('Miz Editor', () => {
     // Check locale selection
     await expect(page.locator('#locale-select')).toBeVisible();
 
-    // Check output format options
-    await expect(page.locator('#format-txt')).toBeVisible();
-    await expect(page.locator('#format-json')).toBeVisible();
 
     // Check process button
     await expect(page.locator('#process-btn')).toBeVisible();
@@ -74,10 +71,6 @@ test.describe('Miz Editor', () => {
     await expect(page.locator('#manual-categories')).toHaveClass(/d-none/);
   });
 
-  test('should have text format selected by default', async ({ page }) => {
-    await expect(page.locator('#format-txt')).toBeChecked();
-    await expect(page.locator('#format-json')).not.toBeChecked();
-  });
 
   test('should have DEFAULT locale selected by default', async ({ page }) => {
     const localeSelect = page.locator('#locale-select');
@@ -181,30 +174,6 @@ test.describe('Miz Editor - Processing', () => {
     await expect(page.locator('#extraction-stats')).not.toBeEmpty();
   });
 
-  test('should format output as JSON when JSON format is selected', async ({ page }) => {
-    const sampleMizPath = path.join(__dirname, '..', 'samples', 'sample_mission.miz');
-
-    if (!fs.existsSync(sampleMizPath)) {
-      test.skip();
-      return;
-    }
-
-    // Select JSON format
-    await page.locator('#format-json').click();
-
-    // Upload and process file
-    const fileInput = page.locator('#file-input');
-    await fileInput.setInputFiles(sampleMizPath);
-    await page.locator('#process-btn').click();
-
-    // Wait for results
-    await expect(page.locator('#results-section')).not.toHaveClass(/d-none/, { timeout: 10000 });
-
-    // Output should be valid JSON
-    const outputText = await page.locator('#output-preview').inputValue();
-    expect(() => JSON.parse(outputText)).not.toThrow();
-  });
-
   test('should extract all 3 text types: briefings, triggers, and radio messages', async ({ page }) => {
     const sampleMizPath = path.join(__dirname, '..', 'samples', 'sample_mission.miz');
 
@@ -267,9 +236,5 @@ test.describe('Miz Editor - Accessibility', () => {
     // Check mode radio buttons have labels
     await expect(page.locator('label[for="mode-auto"]')).toBeVisible();
     await expect(page.locator('label[for="mode-manual"]')).toBeVisible();
-
-    // Check format radio buttons have labels
-    await expect(page.locator('label[for="format-txt"]')).toBeVisible();
-    await expect(page.locator('label[for="format-json"]')).toBeVisible();
   });
 });

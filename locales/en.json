@@ -37,11 +37,6 @@
       "russian": "Russian (RU)",
       "hint": "If selected locale is unavailable, DEFAULT will be used"
     },
-    "format": {
-      "title": "4. Output Format",
-      "txt": "Plain Text (.txt)",
-      "json": "JSON (.json)"
-    },
     "process": {
       "button": "Process File",
       "processing": "Processing..."

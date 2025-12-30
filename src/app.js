@@ -28,8 +28,6 @@
         modeManual: document.getElementById('mode-manual'),
         manualCategories: document.getElementById('manual-categories'),
         localeSelect: document.getElementById('locale-select'),
-        formatTxt: document.getElementById('format-txt'),
-        formatJson: document.getElementById('format-json'),
         processBtn: document.getElementById('process-btn'),
         processText: document.getElementById('process-text'),
         processSpinner: document.getElementById('process-spinner'),
@@ -301,15 +299,8 @@
     function displayResults() {
         if (!extractionResult) return;
 
-        // Format output based on selected format
-        const format = elements.formatJson.checked ? 'json' : 'txt';
-        let output;
-
-        if (format === 'json') {
-            output = MizParser.formatAsJson(extractionResult);
-        } else {
-            output = MizParser.formatAsText(extractionResult);
-        }
+        // Format output as plain text
+        const output = MizParser.formatAsText(extractionResult);
 
         // Update preview
         elements.outputPreview.value = output;
@@ -341,22 +332,12 @@
     function downloadOutput() {
         if (!extractionResult || !currentFile) return;
 
-        const format = elements.formatJson.checked ? 'json' : 'txt';
-        let content, mimeType, extension;
-
-        if (format === 'json') {
-            content = MizParser.formatAsJson(extractionResult);
-            mimeType = 'application/json';
-            extension = 'json';
-        } else {
-            content = MizParser.formatAsText(extractionResult);
-            mimeType = 'text/plain';
-            extension = 'txt';
-        }
+        const content = MizParser.formatAsText(extractionResult);
+        const mimeType = 'text/plain';
 
         // Generate filename from original file
         const baseName = currentFile.name.replace(/\.miz$/i, '');
-        const fileName = `${baseName}_extracted.${extension}`;
+        const fileName = `${baseName}_extracted.txt`;
 
         // Create download
         const blob = new Blob([content], { type: mimeType });
